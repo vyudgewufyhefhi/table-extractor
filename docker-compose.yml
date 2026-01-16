@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: table-extractor-backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5000}:5000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///table_extractor.db}
+      - UPLOAD_FOLDER=${UPLOAD_FOLDER:-uploads}
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-10485760}
+      - HOST=${HOST:-0.0.0.0}
+      - PORT=${PORT:-5000}
+      - DEPLOY_MODE=${DEPLOY_MODE:-local}
+      - PUBLIC_IP=${PUBLIC_IP:-}
+      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - VITE_PORT=${VITE_PORT:-5173}
+    volumes:
+      # 挂载 .env 文件（如果存在）
+      - ./.env:/app/.env:ro
+      # 挂载数据库目录（持久化）
+      - ./backend/instance:/app/instance
+      # 挂载上传文件目录（持久化）
+      - ./backend/uploads:/app/uploads
+      # 如果根目录也有 instance 和 uploads，也挂载
+      - ./instance:/app/instance_root:rw
+    networks:
+      - table-extractor-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:5000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # 构建时传递环境变量（如果设置了 VITE_API_URL）
+        - VITE_API_URL=${VITE_API_URL:-}
+    container_name: table-extractor-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+    networks:
+      - table-extractor-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  table-extractor-network:
+    driver: bridge
+
+volumes:
+  # 数据库数据卷（可选，如果使用命名卷）
+  database-data:
+  # 上传文件数据卷（可选，如果使用命名卷）
+  uploads-data:
+

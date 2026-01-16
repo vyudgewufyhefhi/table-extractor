@@ -319,6 +319,7 @@ onUnmounted(() => {})
   height: 100vh;
   display: flex;
   flex-direction: column;
+  background: #f5f7fa;
 }
 
 .header {
@@ -327,6 +328,7 @@ onUnmounted(() => {})
   padding: 0;
   height: 60px;
   line-height: 60px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .header-content {
@@ -359,7 +361,7 @@ onUnmounted(() => {})
 .main-container {
   flex: 1;
   overflow: hidden;
-  padding: 10px;
+  padding: 20px;
 }
 
 .single-column {
@@ -367,10 +369,12 @@ onUnmounted(() => {})
 }
 
 .panel-content {
-  padding: 20px;
+  padding: 30px;
   background: #fff;
-  border-radius: 8px;
-  height: calc(100vh - 80px);
+  border-radius: 12px;
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  height: calc(100vh - 100px);
   overflow: auto;
 }
 
@@ -384,6 +388,7 @@ onUnmounted(() => {})
   margin-bottom: 20px;
   font-size: 18px;
   color: #303133;
+  font-weight: 600;
 }
 
 .action-buttons {
@@ -419,6 +424,10 @@ onUnmounted(() => {})
 
 .edit-area {
   margin-top: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e4e7ed;
 }
 
 .edit-header {
@@ -426,6 +435,8 @@ onUnmounted(() => {})
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
+  font-weight: 600;
+  color: #303133;
 }
 
 .table-editor {
@@ -437,14 +448,16 @@ onUnmounted(() => {})
 .excel-preview {
   margin-top: 20px;
   padding: 15px;
-  background: #f0f9ff;
-  border-radius: 4px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e4e7ed;
 }
 
 .excel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  color: #606266;
 }
 </style>
 

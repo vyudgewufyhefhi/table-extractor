@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+ENV/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# 环境变量（不忽略，需要挂载）
+# .env
+
+# 数据库和上传文件（不忽略，需要挂载）
+# instance/
+# uploads/
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 测试文件
+test/
+*.test.py
+*_test.py
+
+# 文档
+*.md
+!README.md
+
+# 批处理文件（Windows）
+*.bat
+

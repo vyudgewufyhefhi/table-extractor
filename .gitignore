@@ -1,52 +1,172 @@
-# Python
+# ============================================
+# Python 相关
+# ============================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+*.egg-info/
+dist/
+build/
 .venv/
 venv/
 ENV/
 env/
-*.egg-info/
-dist/
-build/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.egg
 
-# Flask
-instance/
+# ============================================
+# Flask 相关
+# ============================================
+# instance/  # 注释掉，保留数据库目录
 .webassets-cache
+# *.db-journal  # 注释掉，保留数据库日志文件
 
-# 数据库
-*.db
-*.sqlite
-*.sqlite3
+# ============================================
+# 数据库文件（保留用于云部署）
+# ============================================
+# *.db  # 注释掉，保留数据库文件用于云部署
+# *.sqlite  # 注释掉，保留数据库文件
+# *.sqlite3  # 注释掉，保留数据库文件
+# *.db-shm  # 注释掉，保留数据库共享内存文件
+# *.db-wal  # 注释掉，保留数据库 WAL 文件
 
-# 上传文件
-backend/uploads/*
-!backend/uploads/.gitkeep
+# ============================================
+# 上传文件目录（保留用于云部署）
+# ============================================
+# backend/uploads/*  # 注释掉，保留上传文件用于云部署
+# !backend/uploads/.gitkeep
+# uploads/*  # 注释掉，保留上传文件用于云部署
+# !uploads/.gitkeep
+# backend/uploads/excel/*  # 注释掉，保留 Excel 文件用于云部署
+# !backend/uploads/excel/.gitkeep
+# uploads/excel/*  # 注释掉，保留 Excel 文件用于云部署
+# !uploads/excel/.gitkeep
+# backend/uploads/temp_images/*  # 注释掉，保留临时图片文件
+# !backend/uploads/temp_images/.gitkeep
+# uploads/temp_images/*  # 注释掉，保留临时图片文件
+# !uploads/temp_images/.gitkeep
 
-# 环境变量
-.env
+# ============================================
+# 环境变量文件（保留用于云部署）
+# ============================================
+# .env  # 注释掉，保留环境变量文件用于云部署
+# .env.local  # 注释掉，保留本地环境变量
+# .env.*.local  # 注释掉，保留本地环境变量
+# backend/.env  # 注释掉，保留后端环境变量
+# frontend/.env  # 注释掉，保留前端环境变量
+# 忽略示例文件（只保留实际的 .env 文件）
+.env.example
+env.example
+backend/env.example
+frontend/env.example
+*.env.example
 
-# IDE
+# ============================================
+# Node.js / 前端相关
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+lerna-debug.log*
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.cache/
+frontend/.temp/
+frontend/.DS_Store
+frontend/coverage/
+frontend/.nyc_output/
+
+# ============================================
+# IDE 和编辑器
+# ============================================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
 
-# 前端
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
-
-# 日志
-*.log
-
-# OS
+# ============================================
+# 操作系统文件
+# ============================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
+# ============================================
+# 日志文件
+# ============================================
+*.log
+logs/
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 
+# ============================================
+# 临时文件和缓存
+# ============================================
+*.tmp
+*.temp
+.cache/
+.temp/
+.tmp/
+*.bak
+*.backup
+*.swp
+*.swo
+*~
 
+# ============================================
+# Docker 相关（可选，通常不需要忽略）
+# ============================================
+# .dockerignore 应该被版本控制
+# docker-compose.override.yml 通常是本地覆盖文件
+docker-compose.override.yml
 
+# ============================================
+# 测试相关
+# ============================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+test-results/
+coverage/
+
+# ============================================
+# 其他
+# ============================================
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.dmg
+*.iso
+
+# 本地配置文件（如果有）
+config.local.json
+settings.local.json

@@ -10,8 +10,16 @@ from dotenv import load_dotenv
 import uuid
 import json
 
-# 加载环境变量
-load_dotenv()
+# 加载环境变量（优先从根目录加载）
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+root_env_path = os.path.join(root_dir, '.env')
+backend_env_path = os.path.join(os.path.dirname(__file__), '.env')
+
+# 先加载根目录的.env，再加载backend目录的.env（如果存在）
+if os.path.exists(root_env_path):
+    load_dotenv(root_env_path)
+if os.path.exists(backend_env_path):
+    load_dotenv(backend_env_path, override=False)  # 不覆盖根目录的配置
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
@@ -22,11 +30,51 @@ app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_FILE_SIZE', 10485760))  # 
 
 # 初始化扩展
 db.init_app(app)
-CORS(app, supports_credentials=True, origins=["http://localhost:5173", "http://localhost:3000"])
+
+# 自动生成CORS配置
+def get_cors_origins():
+    """根据部署模式自动生成CORS允许的源"""
+    deploy_mode = os.getenv('DEPLOY_MODE', 'local').lower()
+    cors_origins_env = os.getenv('CORS_ORIGINS', '').strip()
+    
+    # 如果手动指定了CORS_ORIGINS，优先使用
+    if cors_origins_env:
+        return [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+    
+    # 根据部署模式自动生成
+    if deploy_mode == 'cloud':
+        public_domain = os.getenv('PUBLIC_DOMAIN', '').strip()
+        public_ip = os.getenv('PUBLIC_IP', '').strip()
+        frontend_port = os.getenv('VITE_PORT', '5173')
+        
+        origins = []
+        if public_domain:
+            # 使用域名
+            origins.append(f'http://{public_domain}')
+            origins.append(f'https://{public_domain}')
+        elif public_ip:
+            # 使用公网IP
+            origins.append(f'http://{public_ip}:{frontend_port}')
+            origins.append(f'http://{public_ip}:3000')
+        
+        if origins:
+            return origins
+    
+    # 默认本地开发配置
+    return ['http://localhost:5173', 'http://localhost:3000']
+
+allowed_origins = get_cors_origins()
+CORS(app, supports_credentials=True, origins=allowed_origins)
 
 # 确保上传目录存在
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'excel'), exist_ok=True)
+
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """健康检查端点"""
+    return jsonify({'status': 'ok', 'message': '服务运行正常'}), 200
 
 
 def parse_plain_text_table(raw_text: str):

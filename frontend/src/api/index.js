@@ -1,8 +1,31 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+// 使用环境变量配置API地址
+const getBaseURL = () => {
+  // 如果配置了VITE_API_URL，使用配置的URL
+  if (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.trim()) {
+    const apiUrl = import.meta.env.VITE_API_URL.trim()
+    // 如果是完整URL（包含http://或https://），直接使用
+    if (apiUrl.startsWith('http://') || apiUrl.startsWith('https://')) {
+      return apiUrl
+    }
+    // 否则作为路径使用
+    return apiUrl
+  }
+  
+  // 生产环境：尝试从window.location推断
+  if (import.meta.env.PROD) {
+    // 如果当前页面是完整URL，使用相对路径
+    return '/api'
+  }
+  
+  // 开发环境：使用相对路径（由vite代理处理）
+  return '/api'
+}
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: getBaseURL(),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
