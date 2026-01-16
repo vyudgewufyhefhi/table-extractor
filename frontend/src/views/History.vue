@@ -9,10 +9,6 @@
               <el-icon><ArrowLeft /></el-icon>
               返回
             </el-button>
-            <el-button type="primary" @click="$router.push('/')">
-              <el-icon><Plus /></el-icon>
-              新建任务
-            </el-button>
             <el-dropdown @command="handleCommand">
               <span class="user-info">
                 <el-icon><User /></el-icon>
@@ -33,9 +29,20 @@
         <div class="history-content-wrapper">
           <div class="history-content">
             <div class="history-toolbar" v-if="recordList.length > 0">
-              <el-button type="danger" :disabled="selectedRecords.length === 0" @click="handleBatchDelete">
-                批量删除 ({{ selectedRecords.length }})
-              </el-button>
+              <div class="toolbar-left">
+                <el-button 
+                  type="primary" 
+                  size="small" 
+                  @click="toggleSelectAll"
+                >
+                  {{ isAllSelected ? '取消全选' : '全选' }}
+                </el-button>
+              </div>
+              <div class="toolbar-right">
+                <el-button type="danger" :disabled="selectedRecords.length === 0" @click="handleBatchDelete">
+                  批量删除 ({{ selectedRecords.length }})
+                </el-button>
+              </div>
             </div>
             <el-table
             :data="recordList"
@@ -43,8 +50,13 @@
             style="width: 100%"
             stripe
             @selection-change="handleSelectionChange"
+            ref="tableRef"
           >
-            <el-table-column type="selection" width="55" align="center" />
+            <el-table-column type="selection" width="55" align="center">
+              <template #header>
+                <span></span>
+              </template>
+            </el-table-column>
             <el-table-column prop="created_at" label="生成时间" width="220" align="center">
               <template #default="{ row }">
                 {{ formatDate(row.created_at) }}
@@ -134,7 +146,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Plus, User, ArrowDown } from '@element-plus/icons-vue'
+import { ArrowLeft, User, ArrowDown } from '@element-plus/icons-vue'
 import api from '@/api'
 
 const router = useRouter()
@@ -145,6 +157,8 @@ const loading = ref(false)
 const detailVisible = ref(false)
 const currentRecord = ref(null)
 const selectedRecords = ref([])
+const tableRef = ref(null)
+const isAllSelected = ref(false)
 
 // 格式化日期：格式为 2026年01月16日13:45:30（时分秒用冒号）
 const formatDate = (dateString) => {
@@ -206,6 +220,25 @@ const downloadExcel = (record) => {
 // 处理选择变化
 const handleSelectionChange = (selection) => {
   selectedRecords.value = selection
+  // 更新全选状态
+  isAllSelected.value = selection.length === recordList.value.length && recordList.value.length > 0
+}
+
+// 全选/取消全选
+const toggleSelectAll = () => {
+  if (!tableRef.value) return
+  
+  if (isAllSelected.value) {
+    // 取消全选
+    tableRef.value.clearSelection()
+    isAllSelected.value = false
+  } else {
+    // 全选
+    recordList.value.forEach(row => {
+      tableRef.value.toggleRowSelection(row, true)
+    })
+    isAllSelected.value = true
+  }
 }
 
 // 删除单条记录
@@ -342,8 +375,24 @@ onMounted(() => {
 .history-toolbar {
   margin-bottom: 15px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   width: 100%;
+}
+
+.toolbar-left {
+  display: flex;
+  gap: 10px;
+}
+
+.toolbar-right {
+  display: flex;
+  gap: 10px;
+}
+
+/* 隐藏表头的复选框 */
+:deep(.el-table__header-wrapper .el-checkbox) {
+  display: none;
 }
 
 .history-content {

@@ -8,7 +8,7 @@ import fs from 'fs'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-// ¶ÁÈ¡¸ùÄ¿Â¼µÄ.envÎÄ¼þ£¨Èç¹û´æÔÚ£©
+// è¯»å–æ ¹ç›®å½•çš„.envæ–‡ä»¶ï¼ˆå¦‚æžœå­˜åœ¨ï¼‰
 const rootEnvPath = path.resolve(__dirname, '..', '.env')
 let rootEnv = {}
 if (fs.existsSync(rootEnvPath)) {
@@ -25,20 +25,20 @@ if (fs.existsSync(rootEnvPath)) {
 }
 
 export default defineConfig(({ command, mode }) => {
-  // ¼ÓÔØ»·¾³±äÁ¿£¨Vite»á×Ô¶¯¼ÓÔØ.envÎÄ¼þ£©
+  // åŠ è½½çŽ¯å¢ƒå˜é‡ï¼ˆViteä¼šè‡ªåŠ¨åŠ è½½.envæ–‡ä»¶ï¼‰
   const env = loadEnv(mode, process.cwd(), '')
   
-  // ºÏ²¢¸ùÄ¿Â¼µÄ.env±äÁ¿£¨ÓÅÏÈ¼¶¸ü¸ß£©
+  // åˆå¹¶æ ¹ç›®å½•çš„.envå˜é‡ï¼ˆä¼˜å…ˆçº§æ›´é«˜ï¼‰
   const mergedEnv = { ...env, ...rootEnv }
   
-  // »ñÈ¡APIµØÖ·£¨¸ù¾Ý²¿ÊðÄ£Ê½£©
+  // èŽ·å–APIåœ°å€ï¼ˆæ ¹æ®éƒ¨ç½²æ¨¡å¼ï¼‰
   const getApiUrl = () => {
-    // Èç¹ûÊÖ¶¯Ö¸¶¨ÁËVITE_API_URL£¬ÓÅÏÈÊ¹ÓÃ
+    // å¦‚æžœæ‰‹åŠ¨æŒ‡å®šäº†VITE_API_URLï¼Œä¼˜å…ˆä½¿ç”¨
     if (mergedEnv.VITE_API_URL && mergedEnv.VITE_API_URL.trim()) {
       return mergedEnv.VITE_API_URL.trim()
     }
     
-    // ¸ù¾Ý²¿ÊðÄ£Ê½×Ô¶¯Éú³É
+    // æ ¹æ®éƒ¨ç½²æ¨¡å¼è‡ªåŠ¨ç”Ÿæˆ
     const deployMode = (mergedEnv.DEPLOY_MODE || 'local').toLowerCase()
     
     if (deployMode === 'cloud') {
@@ -47,26 +47,26 @@ export default defineConfig(({ command, mode }) => {
       const backendPort = mergedEnv.PORT || '5000'
       
       if (publicDomain) {
-        // ÓÅÏÈÊ¹ÓÃHTTPS
+        // ä¼˜å…ˆä½¿ç”¨HTTPS
         return `https://${publicDomain}/api`
       } else if (publicIp) {
         return `http://${publicIp}:${backendPort}/api`
       }
     }
     
-    // Ä¬ÈÏ±¾µØ¿ª·¢
+    // é»˜è®¤æœ¬åœ°å¼€å‘
     return 'http://localhost:5000'
   }
   
   const apiUrl = getApiUrl()
   
-  // »ñÈ¡´úÀíÄ¿±êµØÖ·£¨±¾µØ¿ª·¢Ê±¹Ì¶¨Îª localhost:5000£©
+  // èŽ·å–ä»£ç†ç›®æ ‡åœ°å€ï¼ˆæœ¬åœ°å¼€å‘æ—¶å›ºå®šä¸º localhost:5000ï¼‰
   const getProxyTarget = () => {
-    // ÔÚ¿ª·¢»·¾³ÖÐ£¬×ÜÊÇÊ¹ÓÃ±¾µØ´úÀí
+    // åœ¨å¼€å‘çŽ¯å¢ƒä¸­ï¼Œæ€»æ˜¯ä½¿ç”¨æœ¬åœ°ä»£ç†
     if (command === 'serve') {
       return 'http://localhost:5000'
     }
-    // Éú²ú»·¾³Ê¹ÓÃÅäÖÃµÄAPIµØÖ·£¨È¥µô /api Ç°×º£©
+    // ç”Ÿäº§çŽ¯å¢ƒä½¿ç”¨é…ç½®çš„APIåœ°å€ï¼ˆåŽ»æŽ‰ /api å‰ç¼€ï¼‰
     if (apiUrl.includes('/api')) {
       return apiUrl.replace('/api', '')
     }
@@ -75,8 +75,8 @@ export default defineConfig(({ command, mode }) => {
   
   const proxyTarget = getProxyTarget()
   
-  // ÔÚ¿ª·¢»·¾³ÖÐ£¬²»ÉèÖÃ VITE_API_URL£¬ÈÃÇ°¶ËÊ¹ÓÃÏà¶ÔÂ·¾¶ /api£¨Í¨¹ý´úÀí£©
-  // ÔÚÉú²ú»·¾³ÖÐ£¬Ê¹ÓÃÅäÖÃµÄ API µØÖ·
+  // åœ¨å¼€å‘çŽ¯å¢ƒä¸­ï¼Œä¸è®¾ç½® VITE_API_URLï¼Œè®©å‰ç«¯ä½¿ç”¨ç›¸å¯¹è·¯å¾„ /apiï¼ˆé€šè¿‡ä»£ç†ï¼‰
+  // åœ¨ç”Ÿäº§çŽ¯å¢ƒä¸­ï¼Œä½¿ç”¨é…ç½®çš„ API åœ°å€
   const clientApiUrl = command === 'serve' ? '' : apiUrl
   
   return {
@@ -92,14 +92,14 @@ export default defineConfig(({ command, mode }) => {
         '/api': {
           target: proxyTarget,
           changeOrigin: true,
-          // ±£Áô /api Ç°×º£¨ÒòÎªºó¶ËÂ·ÓÉ¶¼ÊÇÒÔ /api ¿ªÍ·µÄ£©
+          // ä¿ç•™ /api å‰ç¼€ï¼ˆå› ä¸ºåŽç«¯è·¯ç”±éƒ½æ˜¯ä»¥ /api å¼€å¤´çš„ï¼‰
           rewrite: (path) => path
         }
       }
     },
-    // ½«»·¾³±äÁ¿±©Â¶¸ø¿Í»§¶Ë
-    // ¿ª·¢»·¾³£º²»ÉèÖÃ VITE_API_URL£¬ÈÃÇ°¶ËÊ¹ÓÃÏà¶ÔÂ·¾¶ /api
-    // Éú²ú»·¾³£ºÊ¹ÓÃÅäÖÃµÄ API µØÖ·
+    // å°†çŽ¯å¢ƒå˜é‡æš´éœ²ç»™å®¢æˆ·ç«¯
+    // å¼€å‘çŽ¯å¢ƒï¼šä¸è®¾ç½® VITE_API_URLï¼Œè®©å‰ç«¯ä½¿ç”¨ç›¸å¯¹è·¯å¾„ /api
+    // ç”Ÿäº§çŽ¯å¢ƒï¼šä½¿ç”¨é…ç½®çš„ API åœ°å€
     define: {
       'import.meta.env.VITE_API_URL': JSON.stringify(clientApiUrl)
     }

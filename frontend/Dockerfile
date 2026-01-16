@@ -1,39 +1,39 @@
-# Ç°¶Ë Dockerfile - ¶à½×¶Î¹¹½¨
-# ½×¶Î1: ¹¹½¨
+# å‰ç«¯ Dockerfile - å¤šé˜¶æ®µæž„å»º
+# é˜¶æ®µ1: æž„å»º
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# ¸´ÖÆ package ÎÄ¼þ
+# å¤åˆ¶ package æ–‡ä»¶
 COPY package*.json ./
 
-# °²×°ÒÀÀµ
+# å®‰è£…ä¾èµ–
 RUN npm ci
 
-# ¸´ÖÆÔ´´úÂë
+# å¤åˆ¶æºä»£ç 
 COPY . .
 
-# ¹¹½¨Ó¦ÓÃ
-# ×¢Òâ£ºÔÚ Docker »·¾³ÖÐ£¬Ç°¶ËÍ¨¹ý nginx ´úÀíµ½ºó¶Ë
-# ËùÒÔ VITE_API_URL Ó¦¸ÃÎª¿Õ£¨Ê¹ÓÃÏà¶ÔÂ·¾¶ /api£©
-# Èç¹ûÐèÒª×Ô¶¨Òå API µØÖ·£¬¿ÉÒÔÍ¨¹ý ARG ´«µÝ
+# æž„å»ºåº”ç”¨
+# æ³¨æ„ï¼šåœ¨ Docker çŽ¯å¢ƒä¸­ï¼Œå‰ç«¯é€šè¿‡ nginx ä»£ç†åˆ°åŽç«¯
+# æ‰€ä»¥ VITE_API_URL åº”è¯¥ä¸ºç©ºï¼ˆä½¿ç”¨ç›¸å¯¹è·¯å¾„ /apiï¼‰
+# å¦‚æžœéœ€è¦è‡ªå®šä¹‰ API åœ°å€ï¼Œå¯ä»¥é€šè¿‡ ARG ä¼ é€’
 ARG VITE_API_URL=
 ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build
 
-# ½×¶Î2: ÔËÐÐ
+# é˜¶æ®µ2: è¿è¡Œ
 FROM nginx:alpine
 
-# ¸´ÖÆ¹¹½¨²úÎïµ½ nginx
+# å¤åˆ¶æž„å»ºäº§ç‰©åˆ° nginx
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# ¸´ÖÆ nginx ÅäÖÃ
+# å¤åˆ¶ nginx é…ç½®
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# ±©Â¶¶Ë¿Ú
+# æš´éœ²ç«¯å£
 EXPOSE 80
 
-# Æô¶¯ nginx
+# å¯åŠ¨ nginx
 CMD ["nginx", "-g", "daemon off;"]
 

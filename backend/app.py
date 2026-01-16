@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from models import db, User, FileRecord, TextRecord
 from auth import register_user, authenticate_user
 from excel_utils import create_excel_from_table
-from datetime import datetime
+from datetime import datetime, timedelta, timedelta
 import os
 from dotenv import load_dotenv
 import uuid
@@ -118,6 +118,101 @@ def parse_plain_text_table(raw_text: str):
         "rows": normalized_rows,
     }
 
+
+def cleanup_orphaned_excel_files_for_user(user_id=None, exclude_path=None):
+    """
+    自动清理孤立的Excel文件（不在数据库中的文件）
+    
+    Args:
+        user_id: 如果指定，只清理该用户的临时文件（通过文件创建时间推断）
+        exclude_path: 排除的文件路径（通常是当前正在使用的文件）
+    
+    Returns:
+        删除的文件数量
+    """
+    try:
+        # 获取所有数据库中的Excel文件路径
+        all_records = TextRecord.query.all()
+        db_excel_files = set()
+        
+        for record in all_records:
+            if record.excel_path:
+                excel_path = record.excel_path
+                if not os.path.isabs(excel_path):
+                    excel_path = os.path.abspath(os.path.join(
+                        os.path.dirname(os.path.dirname(__file__)), 
+                        excel_path
+                    ))
+                db_excel_files.add(excel_path)
+                db_excel_files.add(os.path.basename(excel_path))
+        
+        # 扫描 uploads/excel 目录
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        excel_dir = os.path.join(base_dir, app.config['UPLOAD_FOLDER'], 'excel')
+        
+        if not os.path.exists(excel_dir):
+            return 0
+        
+        deleted_count = 0
+        now = datetime.now()
+        # 清理超过1小时的未保存文件
+        max_age = timedelta(hours=1)
+        
+        # 遍历目录中的所有文件
+        for filename in os.listdir(excel_dir):
+            if not filename.endswith('.xlsx'):
+                continue
+            
+            file_path = os.path.join(excel_dir, filename)
+            file_path_abs = os.path.abspath(file_path)
+            
+            # 排除当前正在使用的文件
+            if exclude_path and (file_path_abs == exclude_path or os.path.basename(exclude_path) == filename):
+                continue
+            
+            # 检查文件是否在数据库中
+            is_in_db = False
+            for record in all_records:
+                if record.excel_path:
+                    record_path = record.excel_path
+                    if not os.path.isabs(record_path):
+                        record_path = os.path.abspath(os.path.join(
+                            os.path.dirname(os.path.dirname(__file__)), 
+                            record_path
+                        ))
+                    if record_path == file_path_abs or os.path.basename(record_path) == filename:
+                        is_in_db = True
+                        break
+            
+            # 如果不在数据库中，检查文件创建时间
+            if not is_in_db:
+                try:
+                    # 获取文件修改时间（作为创建时间的近似值）
+                    file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path_abs))
+                    file_age = now - file_mtime
+                    
+                    # 如果文件超过1小时，或者用户指定了user_id且文件是最近生成的（可能是该用户的临时文件）
+                    if file_age > max_age:
+                        # 超过1小时，直接删除
+                        os.remove(file_path_abs)
+                        deleted_count += 1
+                    elif user_id is not None:
+                        # 如果指定了user_id，且文件是最近生成的（可能是该用户的临时文件），也删除
+                        # 这里假设最近5分钟内生成的文件可能是该用户的临时文件
+                        if file_age < timedelta(minutes=5):
+                            os.remove(file_path_abs)
+                            deleted_count += 1
+                except Exception as e:
+                    # 删除失败不影响主流程
+                    pass
+        
+        return deleted_count
+    except Exception as e:
+        # 清理失败不影响主流程
+        print(f"清理孤立文件时出错: {str(e)}")
+        return 0
+
+
 @app.route('/api/register', methods=['POST'])
 def register():
     """用户注册"""
@@ -230,6 +325,9 @@ def manual_parse():
         # 解析文本为表格
         table_data = parse_plain_text_table(raw_text)
 
+        # 在生成新Excel之前，自动清理该用户之前生成的未保存临时文件
+        cleanup_orphaned_excel_files_for_user(user_id=user_id)
+        
         # 生成 Excel
         excel_filename = f"{uuid.uuid4().hex}.xlsx"
         # 确保路径是绝对路径，基于项目根目录
@@ -305,6 +403,9 @@ def save_to_history():
         if not user:
             return jsonify({'success': False, 'error': '用户不存在'}), 404
 
+        # 在保存到历史记录之前，自动清理该用户之前生成的未保存临时文件（排除当前要保存的文件）
+        cleanup_orphaned_excel_files_for_user(user_id=user_id, exclude_path=excel_path)
+        
         # 保存到历史记录
         record = TextRecord(
             user_id=user_id,
@@ -464,9 +565,91 @@ def get_file(file_id):
     return jsonify({'success': False, 'error': '文件功能已停用'}), 404
 
 
+@app.route('/api/manual/cleanup-orphaned-files', methods=['POST'])
+def cleanup_orphaned_excel_files():
+    """清理孤立的Excel文件（不在数据库中的文件）"""
+    try:
+        # 获取所有数据库中的Excel文件路径
+        all_records = TextRecord.query.all()
+        db_excel_files = set()
+        
+        for record in all_records:
+            if record.excel_path:
+                # 标准化路径（转换为绝对路径）
+                excel_path = record.excel_path
+                if not os.path.isabs(excel_path):
+                    excel_path = os.path.abspath(os.path.join(
+                        os.path.dirname(os.path.dirname(__file__)), 
+                        excel_path
+                    ))
+                db_excel_files.add(excel_path)
+                # 也添加文件名（用于匹配）
+                db_excel_files.add(os.path.basename(excel_path))
+        
+        # 扫描 uploads/excel 目录
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        excel_dir = os.path.join(base_dir, app.config['UPLOAD_FOLDER'], 'excel')
+        
+        if not os.path.exists(excel_dir):
+            return jsonify({
+                'success': True,
+                'message': 'Excel目录不存在，无需清理',
+                'deleted_count': 0
+            }), 200
+        
+        deleted_count = 0
+        deleted_files = []
+        
+        # 遍历目录中的所有文件
+        for filename in os.listdir(excel_dir):
+            if not filename.endswith('.xlsx'):
+                continue
+            
+            file_path = os.path.join(excel_dir, filename)
+            file_path_abs = os.path.abspath(file_path)
+            
+            # 检查文件是否在数据库中
+            is_in_db = False
+            for record in all_records:
+                if record.excel_path:
+                    record_path = record.excel_path
+                    if not os.path.isabs(record_path):
+                        record_path = os.path.abspath(os.path.join(
+                            os.path.dirname(os.path.dirname(__file__)), 
+                            record_path
+                        ))
+                    # 比较绝对路径或文件名
+                    if record_path == file_path_abs or os.path.basename(record_path) == filename:
+                        is_in_db = True
+                        break
+            
+            # 如果不在数据库中，删除文件
+            if not is_in_db:
+                try:
+                    os.remove(file_path_abs)
+                    deleted_count += 1
+                    deleted_files.append(filename)
+                except Exception as e:
+                    print(f"删除孤立文件失败 {filename}: {str(e)}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'清理完成，删除了 {deleted_count} 个孤立文件',
+            'deleted_count': deleted_count,
+            'deleted_files': deleted_files
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'清理失败: {str(e)}'}), 500
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        # 启动时自动清理所有超过1小时的孤立文件
+        deleted = cleanup_orphaned_excel_files_for_user()
+        if deleted > 0:
+            print(f"启动时清理了 {deleted} 个孤立文件")
     
     host = os.getenv('HOST', '0.0.0.0')
     port = int(os.getenv('PORT', 5000))

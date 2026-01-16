@@ -32,7 +32,7 @@
           <h3 class="panel-title">步骤一：复制提示词，喂给AI</h3>
           <el-alert
             title="请将以下提示词完整复制后，粘贴到AI中运行。"
-            type="info"
+            type="warning"
             show-icon
             class="prompt-alert"
           />

@@ -1,30 +1,30 @@
-# ºó¶Ë Dockerfile
+# åç«¯ Dockerfile
 FROM python:3.11-slim
 
-# ÉèÖÃ¹¤×÷Ä¿Â¼
+# è®¾ç½®å·¥ä½œç›®å½•
 WORKDIR /app
 
-# °²×°ÏµÍ³ÒÀÀµ£¨°üÀ¨ wget ÓÃÓÚ½¡¿µ¼ì²é£©
+# å®‰è£…ç³»ç»Ÿä¾èµ–ï¼ˆåŒ…æ‹¬ wget ç”¨äºå¥åº·æ£€æŸ¥ï¼‰
 RUN apt-get update && apt-get install -y \
     gcc \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# ¸´ÖÆÒÀÀµÎÄ¼ş
+# å¤åˆ¶ä¾èµ–æ–‡ä»¶
 COPY requirements.txt .
 
-# °²×° Python ÒÀÀµ
+# å®‰è£… Python ä¾èµ–
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ¸´ÖÆºó¶Ë´úÂë
+# å¤åˆ¶åç«¯ä»£ç 
 COPY . .
 
-# ´´½¨±ØÒªµÄÄ¿Â¼
+# åˆ›å»ºå¿…è¦çš„ç›®å½•
 RUN mkdir -p uploads/excel instance
 
-# ±©Â¶¶Ë¿Ú
+# æš´éœ²ç«¯å£
 EXPOSE 5000
 
-# Æô¶¯ÃüÁî
+# å¯åŠ¨å‘½ä»¤
 CMD ["python", "app.py"]
 
