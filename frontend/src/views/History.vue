@@ -30,15 +30,22 @@
       </el-header>
 
       <el-main class="main-content">
-        <div class="history-content">
-          <el-table
+        <div class="history-content-wrapper">
+          <div class="history-content">
+            <div class="history-toolbar" v-if="recordList.length > 0">
+              <el-button type="danger" :disabled="selectedRecords.length === 0" @click="handleBatchDelete">
+                批量删除 ({{ selectedRecords.length }})
+              </el-button>
+            </div>
+            <el-table
             :data="recordList"
             v-loading="loading"
             style="width: 100%"
             stripe
+            @selection-change="handleSelectionChange"
           >
-            <el-table-column prop="title" label="标题" width="220" align="center" />
-            <el-table-column prop="created_at" label="创建时间" width="220" align="center">
+            <el-table-column type="selection" width="55" align="center" />
+            <el-table-column prop="created_at" label="生成时间" width="220" align="center">
               <template #default="{ row }">
                 {{ formatDate(row.created_at) }}
               </template>
@@ -55,17 +62,27 @@
                 </el-button>
                 <el-button
                   type="success"
-                  size="default"
+                  size="small"
+                  text
                   v-if="row.excel_path"
                   @click="downloadExcel(row)"
                 >
                   下载Excel
                 </el-button>
+                <el-button
+                  type="danger"
+                  size="small"
+                  text
+                  @click="handleDelete(row)"
+                >
+                  删除
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
 
-          <el-empty v-if="!loading && recordList.length === 0" description="暂无历史记录" />
+            <el-empty v-if="!loading && recordList.length === 0" description="暂无历史记录" />
+          </div>
         </div>
       </el-main>
     </el-container>
@@ -78,9 +95,8 @@
       :before-close="closeDetail"
     >
       <div v-if="currentRecord" class="file-detail">
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="标题">{{ currentRecord.title }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="生成时间">
             {{ formatDate(currentRecord.created_at) }}
           </el-descriptions-item>
         </el-descriptions>
@@ -128,12 +144,13 @@ const recordList = ref([])
 const loading = ref(false)
 const detailVisible = ref(false)
 const currentRecord = ref(null)
+const selectedRecords = ref([])
 
-// 格式化日期：格式为 2026年01月16日13:45:30
+// 格式化日期：格式为 2026年01月16日13:45:30（时分秒用冒号）
 const formatDate = (dateString) => {
   if (!dateString) return '-'
   const date = new Date(dateString)
-  // 使用本地时间，格式化为：2026年01月16日13:45:30
+  // 使用本地时间，格式化为：2026年01月16日13:45:30（时分秒用冒号）
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
@@ -184,6 +201,61 @@ const downloadExcel = (record) => {
     return
   }
   window.open(`/api/manual/${record.id}/download-excel`, '_blank')
+}
+
+// 处理选择变化
+const handleSelectionChange = (selection) => {
+  selectedRecords.value = selection
+}
+
+// 删除单条记录
+const handleDelete = (record) => {
+  const timeStr = formatDate(record.created_at)
+  ElMessageBox.confirm(`确定要删除记录"${timeStr}"吗？`, '确认删除', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    try {
+      const res = await api.delete(`/manual/${record.id}`)
+      if (res.data.success) {
+        ElMessage.success('删除成功')
+        loadFiles() // 重新加载列表
+      } else {
+        ElMessage.error(res.data.error || '删除失败')
+      }
+    } catch (error) {
+      ElMessage.error('删除失败: ' + (error.response?.data?.error || error.message))
+    }
+  }).catch(() => {})
+}
+
+// 批量删除
+const handleBatchDelete = () => {
+  if (selectedRecords.value.length === 0) {
+    ElMessage.warning('请选择要删除的记录')
+    return
+  }
+  
+  ElMessageBox.confirm(`确定要删除选中的${selectedRecords.value.length}条记录吗？`, '确认批量删除', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    try {
+      const recordIds = selectedRecords.value.map(r => r.id)
+      const res = await api.post('/manual/batch-delete', { record_ids: recordIds })
+      if (res.data.success) {
+        ElMessage.success(res.data.message || '批量删除成功')
+        selectedRecords.value = []
+        loadFiles() // 重新加载列表
+      } else {
+        ElMessage.error(res.data.error || '批量删除失败')
+      }
+    } catch (error) {
+      ElMessage.error('批量删除失败: ' + (error.response?.data?.error || error.message))
+    }
+  }).catch(() => {})
 }
 
 // 处理用户命令
@@ -254,12 +326,31 @@ onMounted(() => {
 .main-content {
   padding: 20px;
   background: #f5f7fa;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.history-content-wrapper {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.history-toolbar {
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
 }
 
 .history-content {
   background: #fff;
   padding: 20px;
   border-radius: 8px;
+  width: 100%;
 }
 
 .file-detail {

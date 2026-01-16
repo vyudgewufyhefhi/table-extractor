@@ -96,6 +96,7 @@
                   :prop="`col${index}`"
                   :label="header || `列${index + 1}`"
                   min-width="120"
+                  align="center"
                 >
                   <template #default="{ row }">
                     {{ row[index] }}
@@ -106,10 +107,13 @@
 
             <div class="excel-preview" v-if="lastRecord">
               <div class="excel-header">
-                <span>最近一次生成：{{ lastRecord.title }}</span>
+                <span>最近一次生成：{{ formatLastRecordTime(lastRecord) }}</span>
                 <div>
                   <el-button type="primary" size="large" @click="downloadLastExcel">
                     下载Excel
+                  </el-button>
+                  <el-button type="success" size="large" @click="saveToHistory" :disabled="saving">
+                    {{ saving ? '保存中...' : '存入历史记录' }}
                   </el-button>
                 </div>
               </div>
@@ -149,6 +153,7 @@ const tablePreview = reactive({
 })
 const lastRecord = ref(null)
 const previewAreaRef = ref(null)
+const saving = ref(false)
 
 // 监听文本变化，保存到localStorage
 watch(manualText, (newVal) => {
@@ -196,11 +201,19 @@ const handleManualGenerate = async () => {
 
     if (res.data.success) {
       ElMessage.success('解析并生成Excel成功！')
-      const record = res.data.record
-      lastRecord.value = record
-      if (record.table) {
-        tablePreview.headers = record.table.headers || []
-        tablePreview.rows = record.table.rows || []
+      const data = res.data.data
+      // 存储临时数据（不保存到历史记录）
+      lastRecord.value = {
+        title: data.title,
+        excel_path: data.excel_path,
+        excel_filename: data.excel_filename,
+        table_data: data.table_data,
+        raw_text: data.raw_text
+      }
+      // 显示预览
+      if (data.table_data) {
+        tablePreview.headers = data.table_data.headers || []
+        tablePreview.rows = data.table_data.rows || []
       }
       // 等待DOM更新后，自动滚动到预览区域
       await nextTick()
@@ -222,9 +235,59 @@ const handleManualGenerate = async () => {
   }
 }
 
+// 格式化最后一条记录的时间
+const formatLastRecordTime = (record) => {
+  if (!record || !record.title) return '-'
+  // title 格式为 2026年01月16日13:45:30
+  return record.title
+}
+
 const downloadLastExcel = () => {
-  if (!lastRecord.value) return
-  window.open(`/api/manual/${lastRecord.value.id}/download-excel`, '_blank')
+  if (!lastRecord.value || !lastRecord.value.excel_path) return
+  // 如果已保存到历史记录，使用历史记录下载接口
+  if (lastRecord.value.id) {
+    window.open(`/api/manual/${lastRecord.value.id}/download-excel`, '_blank')
+  } else {
+    // 临时文件，使用临时下载接口
+    const filename = lastRecord.value.title + '.xlsx'
+    const downloadUrl = `/api/manual/download-temp?path=${encodeURIComponent(lastRecord.value.excel_path)}&filename=${encodeURIComponent(filename)}`
+    window.open(downloadUrl, '_blank')
+  }
+}
+
+const saveToHistory = async () => {
+  if (!lastRecord.value || !userStore.user) {
+    ElMessage.error('请先登录')
+    return
+  }
+
+  if (!lastRecord.value.excel_path) {
+    ElMessage.error('Excel文件不存在')
+    return
+  }
+
+  saving.value = true
+  try {
+    const res = await api.post('/manual/save', {
+      user_id: userStore.user.id,
+      title: lastRecord.value.title,
+      raw_text: lastRecord.value.raw_text,
+      table_data: lastRecord.value.table_data,
+      excel_path: lastRecord.value.excel_path
+    })
+
+    if (res.data.success) {
+      ElMessage.success('已保存到历史记录')
+      // 更新lastRecord，使其包含record_id，这样下载可以直接使用历史记录的接口
+      lastRecord.value.id = res.data.record.id
+    } else {
+      ElMessage.error(res.data.error || '保存失败')
+    }
+  } catch (error) {
+    ElMessage.error('保存失败: ' + (error.response?.data?.error || error.message))
+  } finally {
+    saving.value = false
+  }
 }
 
 // 处理用户命令
