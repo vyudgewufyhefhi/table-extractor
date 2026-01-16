@@ -1,16 +1,14 @@
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from models import db, User, FileRecord
+from models import db, User, FileRecord, TextRecord
 from auth import register_user, authenticate_user
-from file_utils import allowed_file, get_file_type, save_uploaded_file, pdf_to_base64_preview, image_to_base64
-from ai_service import extract_table_from_image, extract_table_from_pdf
-from excel_utils import create_excel_from_table, create_excel_from_multi_page
-from werkzeug.utils import secure_filename
+from excel_utils import create_excel_from_table
 from datetime import datetime
 import os
 from dotenv import load_dotenv
 import uuid
+import json
 
 # 加载环境变量
 load_dotenv()
@@ -30,6 +28,47 @@ CORS(app, supports_credentials=True, origins=["http://localhost:5173", "http://l
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'excel'), exist_ok=True)
 
+
+def parse_plain_text_table(raw_text: str):
+    """
+    将用户粘贴的纯文本解析为表格结构。
+    约定：
+    - 按换行分割为多行
+    - 每行按空白字符分割为多个单元格
+    - 第一行为表头，后续为数据行
+    """
+    import re
+
+    if not raw_text or not raw_text.strip():
+        raise ValueError("文本内容为空")
+
+    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+    if not lines:
+        raise ValueError("文本中没有有效内容")
+
+    # 解析每一行，使用任意数量的空白字符分隔
+    rows = [re.split(r"\s+", line) for line in lines]
+
+    if len(rows) < 2:
+        # 只有一行时，也允许作为数据行，但表头仍为第一行
+        headers = rows[0]
+        data_rows = rows[1:]
+    else:
+        headers = rows[0]
+        data_rows = rows[1:]
+
+    # 统一列数：取最大列数，补空字符串
+    max_cols = max(len(r) for r in [headers] + data_rows)
+    headers = headers + [""] * (max_cols - len(headers))
+    normalized_rows = []
+    for r in data_rows:
+        r = r + [""] * (max_cols - len(r))
+        normalized_rows.append(r)
+
+    return {
+        "headers": headers,
+        "rows": normalized_rows,
+    }
 
 @app.route('/api/register', methods=['POST'])
 def register():
@@ -52,231 +91,171 @@ def register():
 @app.route('/api/login', methods=['POST'])
 def login():
     """用户登录"""
-    data = request.get_json()
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
-    
-    user, error = authenticate_user(username, password)
-    if error:
-        return jsonify({'success': False, 'error': error}), 401
-    
+    try:
+        data = request.get_json() or {}
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+        
+        # 调试日志（生产环境可移除）
+        if not username:
+            return jsonify({'success': False, 'error': '请输入用户名'}), 200
+        if not password:
+            return jsonify({'success': False, 'error': '请输入密码'}), 200
+        
+        user, error = authenticate_user(username, password)
+        if error:
+            # 登录失败不应该返回401，应该返回200但success=False
+            # 401是用于已登录用户的token过期等情况
+            return jsonify({'success': False, 'error': error}), 200
+        
+        return jsonify({
+            'success': True,
+            'user': user.to_dict(),
+            'message': '登录成功'
+        }), 200
+    except Exception as e:
+        # 捕获任何异常，避免500错误
+        return jsonify({'success': False, 'error': f'登录失败: {str(e)}'}), 200
+
+
+# ===== 手动文本模式接口（不调用大模型，也不上传文件） =====
+
+
+@app.route('/api/manual/parse', methods=['POST'])
+def manual_parse():
+    """
+    接收用户粘贴的纯文本，解析为表格并生成 Excel，同时写入历史记录。
+    请求体示例：
+    {
+        "user_id": 1,
+        "raw_text": "……",
+        "title": "可选，自定义标题"
+    }
+    """
+    data = request.get_json() or {}
+    user_id = data.get('user_id')
+    raw_text = data.get('raw_text', '')
+    custom_title = data.get('title')
+
+    if not user_id:
+        return jsonify({'success': False, 'error': '需要用户ID'}), 400
+
+    if not raw_text or not raw_text.strip():
+        return jsonify({'success': False, 'error': '文本内容不能为空'}), 400
+
+    try:
+        # 确认用户存在
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': '用户不存在'}), 404
+
+        # 解析文本为表格
+        table_data = parse_plain_text_table(raw_text)
+
+        # 生成 Excel
+        excel_filename = f"{uuid.uuid4().hex}.xlsx"
+        # 确保路径是绝对路径，基于项目根目录
+        base_dir = os.path.dirname(os.path.dirname(__file__))  # 项目根目录
+        excel_dir = os.path.join(base_dir, app.config['UPLOAD_FOLDER'], 'excel')
+        os.makedirs(excel_dir, exist_ok=True)
+        excel_path = os.path.join(excel_dir, excel_filename)
+        # 转换为绝对路径
+        excel_path_abs = os.path.abspath(excel_path)
+        create_excel_from_table(table_data, excel_path_abs)
+
+        # 生成标题：2026年01月16日13:45:30（与created_at使用相同时间）
+        if custom_title and str(custom_title).strip():
+            title = str(custom_title).strip()
+        else:
+            # 使用本地时间，与created_at保持一致
+            now = datetime.now()
+            title = now.strftime("%Y年%m月%d日%H:%M:%S")
+
+        # 写入历史记录（保存绝对路径）
+        record = TextRecord(
+            user_id=user_id,
+            title=title,
+            raw_text=raw_text,
+            table_json=json.dumps(table_data, ensure_ascii=False),
+            excel_path=excel_path_abs,
+        )
+        db.session.add(record)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'record': record.to_dict(),
+            'excel_url': f"/api/manual/{record.id}/download-excel",
+            'message': '解析并生成Excel成功'
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': f'解析失败: {str(e)}'}), 500
+
+
+@app.route('/api/users/<int:user_id>/manual-records', methods=['GET'])
+def get_manual_records(user_id):
+    """获取用户的手动文本历史记录"""
+    records = TextRecord.query.filter_by(user_id=user_id).order_by(
+        TextRecord.created_at.desc()
+    ).all()
     return jsonify({
         'success': True,
-        'user': user.to_dict(),
-        'message': '登录成功'
+        'records': [r.to_dict() for r in records],
     }), 200
 
 
-@app.route('/api/upload', methods=['POST'])
-def upload_file():
-    """上传文件"""
-    if 'file' not in request.files:
-        return jsonify({'success': False, 'error': '没有文件'}), 400
+@app.route('/api/manual/<int:record_id>/download-excel', methods=['GET'])
+def download_manual_excel(record_id):
+    """下载手动文本生成的Excel"""
+    record = TextRecord.query.get_or_404(record_id)
     
-    file = request.files['file']
-    user_id = request.form.get('user_id', type=int)
+    if not record.excel_path:
+        return jsonify({'success': False, 'error': 'Excel文件路径不存在'}), 404
     
-    if not user_id:
-        return jsonify({'success': False, 'error': '需要用户ID'}), 400
+    # 处理路径：如果是相对路径，转换为绝对路径
+    excel_path = record.excel_path
+    if not os.path.isabs(excel_path):
+        # 相对路径，需要基于项目根目录或配置的UPLOAD_FOLDER
+        excel_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), excel_path)
     
-    if file.filename == '':
-        return jsonify({'success': False, 'error': '文件名为空'}), 400
+    # 如果还是找不到，尝试基于UPLOAD_FOLDER的绝对路径
+    if not os.path.exists(excel_path):
+        excel_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), app.config['UPLOAD_FOLDER'], 'excel', os.path.basename(record.excel_path))
     
-    if not allowed_file(file.filename):
-        return jsonify({'success': False, 'error': '不支持的文件类型'}), 400
-    
-    try:
-        # 保存文件
-        file_path, unique_filename, file_ext = save_uploaded_file(file, app.config['UPLOAD_FOLDER'])
-        file_size = os.path.getsize(file_path)
-        file_type = get_file_type(file.filename)
-        
-        # 创建文件记录
-        file_record = FileRecord(
-            user_id=user_id,
-            filename=file.filename,
-            file_type=file_type,
-            file_path=file_path,
-            file_size=file_size,
-            status='uploaded'
-        )
-        db.session.add(file_record)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'file': file_record.to_dict(),
-            'message': '上传成功'
-        }), 201
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+    if not os.path.exists(excel_path):
+        return jsonify({'success': False, 'error': f'Excel文件不存在: {excel_path}'}), 404
 
+    filename = f"{record.title}.xlsx"
+    # 替换标题中的非法文件名字符
+    for ch in [' ', ':', '/', '\\', '*', '?', '"', '<', '>', '|']:
+        filename = filename.replace(ch, '_')
 
-@app.route('/api/files/<int:file_id>/preview', methods=['GET'])
-def preview_file(file_id):
-    """预览文件"""
-    file_record = FileRecord.query.get_or_404(file_id)
-    
-    try:
-        if file_record.file_type == 'pdf':
-            page = request.args.get('page', 0, type=int)
-            base64_data = pdf_to_base64_preview(file_record.file_path, page)
-        else:
-            base64_data = image_to_base64(file_record.file_path)
-        
-        return jsonify({
-            'success': True,
-            'preview': base64_data,
-            'file_type': file_record.file_type
-        }), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/files/<int:file_id>/recognize', methods=['POST'])
-def recognize_file(file_id):
-    """识别文件中的表格"""
-    file_record = FileRecord.query.get_or_404(file_id)
-    
-    # 获取API配置
-    api_key = os.getenv('QWEN_API_KEY')
-    api_base = os.getenv('QWEN_API_BASE')
-    model = os.getenv('QWEN_MODEL', 'qwen-vl-max')
-    
-    if not api_key:
-        return jsonify({'success': False, 'error': 'API密钥未配置'}), 500
-    
-    try:
-        file_record.status = 'processing'
-        db.session.commit()
-        
-        # 根据文件类型调用不同的识别函数
-        if file_record.file_type == 'pdf':
-            table_data, error = extract_table_from_pdf(file_record.file_path, api_key, api_base, model)
-        else:
-            table_data, error = extract_table_from_image(file_record.file_path, api_key, api_base, model)
-        
-        if error:
-            file_record.status = 'failed'
-            db.session.commit()
-            return jsonify({'success': False, 'error': error}), 500
-        
-        # 保存识别结果
-        file_record.set_ai_result(table_data)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'file': file_record.to_dict(),
-            'message': '识别成功'
-        }), 200
-        
-    except Exception as e:
-        file_record.status = 'failed'
-        db.session.commit()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/files/<int:file_id>/correct', methods=['POST'])
-def correct_file(file_id):
-    """保存用户校正后的表格数据"""
-    file_record = FileRecord.query.get_or_404(file_id)
-    data = request.get_json()
-    corrected_data = data.get('corrected_data')
-    
-    if not corrected_data:
-        return jsonify({'success': False, 'error': '缺少校正数据'}), 400
-    
-    try:
-        file_record.set_corrected_result(corrected_data)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'file': file_record.to_dict(),
-            'message': '校正成功'
-        }), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/files/<int:file_id>/generate-excel', methods=['POST'])
-def generate_excel(file_id):
-    """生成Excel文件"""
-    file_record = FileRecord.query.get_or_404(file_id)
-    
-    # 获取校正后的数据，如果没有则使用AI识别结果
-    if file_record.corrected_result:
-        table_data = file_record.to_dict()['corrected_result']
-    elif file_record.ai_result:
-        table_data = file_record.to_dict()['ai_result']
-    else:
-        return jsonify({'success': False, 'error': '没有可用的表格数据'}), 400
-    
-    try:
-        # 生成Excel文件
-        excel_filename = f"{uuid.uuid4().hex}.xlsx"
-        excel_path = os.path.join(app.config['UPLOAD_FOLDER'], 'excel', excel_filename)
-        
-        # 判断是否为多页表格
-        if isinstance(table_data, dict) and table_data.get('multi_page'):
-            create_excel_from_multi_page(table_data, excel_path)
-        else:
-            create_excel_from_table(table_data, excel_path)
-        
-        # 保存Excel路径
-        file_record.set_excel_path(excel_path)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'file': file_record.to_dict(),
-            'excel_url': f"/api/files/{file_id}/download-excel",
-            'message': 'Excel生成成功'
-        }), 200
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/files/<int:file_id>/download-excel', methods=['GET'])
-def download_excel(file_id):
-    """下载Excel文件"""
-    file_record = FileRecord.query.get_or_404(file_id)
-    
-    if not file_record.excel_path or not os.path.exists(file_record.excel_path):
-        return jsonify({'success': False, 'error': 'Excel文件不存在'}), 404
-    
     return send_file(
-        file_record.excel_path,
+        excel_path,
         as_attachment=True,
-        download_name=f"{file_record.filename.rsplit('.', 1)[0]}.xlsx",
+        download_name=filename,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
 
 @app.route('/api/users/<int:user_id>/files', methods=['GET'])
 def get_user_files(user_id):
-    """获取用户的所有文件记录"""
-    files = FileRecord.query.filter_by(user_id=user_id).order_by(FileRecord.uploaded_at.desc()).all()
+    """
+    兼容旧接口：目前不再使用文件上传和AI识别，这里返回空列表，
+    以免前端旧代码报错。
+    """
     return jsonify({
         'success': True,
-        'files': [f.to_dict() for f in files]
+        'files': []
     }), 200
 
 
 @app.route('/api/files/<int:file_id>', methods=['GET'])
 def get_file(file_id):
-    """获取单个文件记录"""
-    file_record = FileRecord.query.get_or_404(file_id)
-    return jsonify({
-        'success': True,
-        'file': file_record.to_dict()
-    }), 200
+    """兼容旧接口，返回404"""
+    return jsonify({'success': False, 'error': '文件功能已停用'}), 404
 
 
 if __name__ == '__main__':

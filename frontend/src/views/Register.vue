@@ -18,6 +18,12 @@
             placeholder="密码（至少6个字符）"
             size="large"
             prefix-icon="Lock"
+            @input="() => {
+              // 当密码改变时，重新验证确认密码
+              if (formRef) {
+                formRef.value?.validateField('confirmPassword')
+              }
+            }"
           />
         </el-form-item>
         <el-form-item prop="confirmPassword">
@@ -68,7 +74,9 @@ const form = reactive({
 })
 
 const validateConfirmPassword = (rule, value, callback) => {
-  if (value !== form.password) {
+  if (!value) {
+    callback(new Error('请确认密码'))
+  } else if (form.password && value !== form.password) {
     callback(new Error('两次输入的密码不一致'))
   } else {
     callback()
@@ -82,12 +90,12 @@ const rules = {
     { pattern: /^[a-zA-Z0-9_]+$/, message: '用户名只能包含字母、数字和下划线', trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码至少6个字符', trigger: 'blur' }
+    { required: true, message: '请输入密码', trigger: ['blur', 'input'] },
+    { min: 6, message: '密码至少6个字符', trigger: ['blur', 'input'] }
   ],
   confirmPassword: [
-    { required: true, message: '请确认密码', trigger: 'blur' },
-    { validator: validateConfirmPassword, trigger: 'blur' }
+    { required: true, message: '请确认密码', trigger: ['blur', 'input'] },
+    { validator: validateConfirmPassword, trigger: ['blur', 'input'] }
   ]
 }
 
@@ -157,4 +165,6 @@ const handleRegister = async () => {
   margin-left: 5px;
 }
 </style>
+
+
 

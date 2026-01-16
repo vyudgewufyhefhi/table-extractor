@@ -70,6 +70,9 @@ const rules = {
 const handleLogin = async () => {
   if (!formRef.value) return
   
+  // 防止重复提交
+  if (loading.value) return
+  
   await formRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true
@@ -79,8 +82,12 @@ const handleLogin = async () => {
           ElMessage.success('登录成功')
           router.push('/')
         } else {
-          ElMessage.error(result.error || '登录失败')
+          // 确保错误消息统一为"用户名或密码错误"
+          ElMessage.error(result.error || '用户名或密码错误')
         }
+      } catch (error) {
+        // 捕获网络错误等异常
+        ElMessage.error('登录失败，请检查网络连接')
       } finally {
         loading.value = false
       }
@@ -133,4 +140,6 @@ const handleLogin = async () => {
   margin-left: 5px;
 }
 </style>
+
+
 

@@ -5,6 +5,10 @@
         <div class="header-content">
           <h2 class="logo">历史记录</h2>
           <div class="header-right">
+            <el-button @click="$router.back()">
+              <el-icon><ArrowLeft /></el-icon>
+              返回
+            </el-button>
             <el-button type="primary" @click="$router.push('/')">
               <el-icon><Plus /></el-icon>
               新建任务
@@ -28,68 +32,40 @@
       <el-main class="main-content">
         <div class="history-content">
           <el-table
-            :data="fileList"
+            :data="recordList"
             v-loading="loading"
             style="width: 100%"
             stripe
           >
-            <el-table-column prop="filename" label="文件名" width="200" />
-            <el-table-column prop="file_type" label="类型" width="100">
+            <el-table-column prop="title" label="标题" width="220" align="center" />
+            <el-table-column prop="created_at" label="创建时间" width="220" align="center">
               <template #default="{ row }">
-                <el-tag :type="row.file_type === 'pdf' ? 'danger' : 'success'">
-                  {{ row.file_type === 'pdf' ? 'PDF' : '图片' }}
-                </el-tag>
+                {{ formatDate(row.created_at) }}
               </template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="120">
-              <template #default="{ row }">
-                <el-tag :type="getStatusType(row.status)">
-                  {{ getStatusText(row.status) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="uploaded_at" label="上传时间" width="180">
-              <template #default="{ row }">
-                {{ formatDate(row.uploaded_at) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="processed_at" label="处理时间" width="180">
-              <template #default="{ row }">
-                {{ row.processed_at ? formatDate(row.processed_at) : '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="300" fixed="right">
+            <el-table-column label="操作" width="260" fixed="right" align="center">
               <template #default="{ row }">
                 <el-button
                   type="primary"
                   size="small"
                   text
-                  @click="viewDetail(row)"
+                  @click="viewRecord(row)"
                 >
-                  查看详情
+                  查看文本
                 </el-button>
                 <el-button
                   type="success"
-                  size="small"
-                  text
+                  size="default"
                   v-if="row.excel_path"
-                  @click="downloadFile(row)"
+                  @click="downloadExcel(row)"
                 >
                   下载Excel
-                </el-button>
-                <el-button
-                  type="danger"
-                  size="small"
-                  text
-                  @click="deleteFile(row)"
-                >
-                  删除
                 </el-button>
               </template>
             </el-table-column>
           </el-table>
 
-          <el-empty v-if="!loading && fileList.length === 0" description="暂无历史记录" />
+          <el-empty v-if="!loading && recordList.length === 0" description="暂无历史记录" />
         </div>
       </el-main>
     </el-container>
@@ -97,104 +73,36 @@
     <!-- 详情对话框 -->
     <el-dialog
       v-model="detailVisible"
-      title="文件详情"
+      title="记录详情"
       width="80%"
       :before-close="closeDetail"
     >
-      <div v-if="currentFile" class="file-detail">
+      <div v-if="currentRecord" class="file-detail">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="文件名">{{ currentFile.filename }}</el-descriptions-item>
-          <el-descriptions-item label="文件类型">
-            <el-tag :type="currentFile.file_type === 'pdf' ? 'danger' : 'success'">
-              {{ currentFile.file_type === 'pdf' ? 'PDF' : '图片' }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="文件大小">
-            {{ formatFileSize(currentFile.file_size) }}
-          </el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <el-tag :type="getStatusType(currentFile.status)">
-              {{ getStatusText(currentFile.status) }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="上传时间">
-            {{ formatDate(currentFile.uploaded_at) }}
-          </el-descriptions-item>
-          <el-descriptions-item label="处理时间">
-            {{ currentFile.processed_at ? formatDate(currentFile.processed_at) : '-' }}
+          <el-descriptions-item label="标题">{{ currentRecord.title }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">
+            {{ formatDate(currentRecord.created_at) }}
           </el-descriptions-item>
         </el-descriptions>
 
         <div class="detail-sections">
-          <!-- 预览 -->
-          <div class="detail-section" v-if="filePreview">
-            <h3>文件预览</h3>
-            <div class="preview-container">
-              <img
-                v-if="filePreview.type === 'image'"
-                :src="filePreview.data"
-                alt="预览"
-                class="detail-preview-image"
-              />
-              <div v-else class="preview-placeholder">
-                <el-icon><Document /></el-icon>
-                <p>PDF文件</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- AI识别结果 -->
-          <div class="detail-section" v-if="currentFile.ai_result">
-            <h3>AI识别结果</h3>
-            <el-table
-              :data="getTableRows(currentFile.ai_result)"
-              border
-              style="width: 100%"
-              max-height="300"
-            >
-              <el-table-column
-                v-for="(header, index) in getTableHeaders(currentFile.ai_result)"
-                :key="index"
-                :prop="`col${index}`"
-                :label="header"
-                min-width="120"
-              >
-                <template #default="{ row }">
-                  {{ row[index] }}
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-
-          <!-- 用户校正结果 -->
-          <div class="detail-section" v-if="currentFile.corrected_result">
-            <h3>用户校正结果</h3>
-            <el-table
-              :data="getTableRows(currentFile.corrected_result)"
-              border
-              style="width: 100%"
-              max-height="300"
-            >
-              <el-table-column
-                v-for="(header, index) in getTableHeaders(currentFile.corrected_result)"
-                :key="index"
-                :prop="`col${index}`"
-                :label="header"
-                min-width="120"
-              >
-                <template #default="{ row }">
-                  {{ row[index] }}
-                </template>
-              </el-table-column>
-            </el-table>
+          <div class="detail-section">
+            <h3>原始文本</h3>
+            <el-input
+              v-model="currentRecord.raw_text"
+              type="textarea"
+              :rows="16"
+              readonly
+              class="record-textarea"
+            />
           </div>
         </div>
 
         <div class="detail-actions">
           <el-button
             type="primary"
-            v-if="currentFile.excel_path"
-            @click="downloadFile(currentFile)"
+            v-if="currentRecord.excel_path"
+            @click="downloadExcel(currentRecord)"
           >
             下载Excel
           </el-button>
@@ -210,74 +118,32 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft, Plus, User, ArrowDown } from '@element-plus/icons-vue'
 import api from '@/api'
 
 const router = useRouter()
 const userStore = useUserStore()
 
-const fileList = ref([])
+const recordList = ref([])
 const loading = ref(false)
 const detailVisible = ref(false)
-const currentFile = ref(null)
-const filePreview = ref(null)
+const currentRecord = ref(null)
 
-// 获取状态类型
-const getStatusType = (status) => {
-  const map = {
-    uploaded: 'info',
-    processing: 'warning',
-    completed: 'success',
-    failed: 'danger'
-  }
-  return map[status] || 'info'
-}
-
-// 获取状态文本
-const getStatusText = (status) => {
-  const map = {
-    uploaded: '已上传',
-    processing: '处理中',
-    completed: '已完成',
-    failed: '失败'
-  }
-  return map[status] || '未知'
-}
-
-// 格式化日期
+// 格式化日期：格式为 2026年01月16日13:45:30
 const formatDate = (dateString) => {
   if (!dateString) return '-'
   const date = new Date(dateString)
-  return date.toLocaleString('zh-CN')
+  // 使用本地时间，格式化为：2026年01月16日13:45:30
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${year}年${month}月${day}日${hours}:${minutes}:${seconds}`
 }
 
-// 格式化文件大小
-const formatFileSize = (bytes) => {
-  if (!bytes) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
-}
-
-// 获取表格表头
-const getTableHeaders = (data) => {
-  if (!data) return []
-  if (data.multi_page && data.pages) {
-    return data.pages[0]?.headers || []
-  }
-  return data.headers || []
-}
-
-// 获取表格行数据
-const getTableRows = (data) => {
-  if (!data) return []
-  if (data.multi_page && data.pages) {
-    return data.pages[0]?.rows || []
-  }
-  return data.rows || []
-}
-
-// 加载文件列表
+// 加载记录列表
 const loadFiles = async () => {
   if (!userStore.user) {
     router.push('/login')
@@ -286,9 +152,9 @@ const loadFiles = async () => {
 
   loading.value = true
   try {
-    const res = await api.get(`/users/${userStore.user.id}/files`)
+    const res = await api.get(`/users/${userStore.user.id}/manual-records`)
     if (res.data.success) {
-      fileList.value = res.data.files
+      recordList.value = res.data.records
     } else {
       ElMessage.error('加载失败')
     }
@@ -299,62 +165,25 @@ const loadFiles = async () => {
   }
 }
 
-// 查看详情
-const viewDetail = async (file) => {
-  try {
-    const res = await api.get(`/files/${file.id}`)
-    if (res.data.success) {
-      currentFile.value = res.data.file
-      
-      // 获取预览
-      const previewRes = await api.get(`/files/${file.id}/preview`)
-      if (previewRes.data.success) {
-        filePreview.value = {
-          type: file.file_type === 'pdf' ? 'pdf' : 'image',
-          data: previewRes.data.preview
-        }
-      }
-      
-      detailVisible.value = true
-    } else {
-      ElMessage.error('加载详情失败')
-    }
-  } catch (error) {
-    ElMessage.error('加载详情失败: ' + error.message)
-  }
+// 查看记录详情
+const viewRecord = (record) => {
+  currentRecord.value = record
+  detailVisible.value = true
 }
 
 // 关闭详情
 const closeDetail = () => {
   detailVisible.value = false
-  currentFile.value = null
-  filePreview.value = null
+  currentRecord.value = null
 }
 
-// 下载文件
-const downloadFile = (file) => {
-  if (!file.excel_path) {
+// 下载Excel
+const downloadExcel = (record) => {
+  if (!record.excel_path) {
     ElMessage.warning('Excel文件尚未生成')
     return
   }
-  window.open(`/api/files/${file.id}/download-excel`, '_blank')
-}
-
-// 删除文件
-const deleteFile = (file) => {
-  ElMessageBox.confirm('确定要删除这条记录吗？', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      // 这里可以添加删除API调用
-      ElMessage.success('删除成功')
-      loadFiles()
-    } catch (error) {
-      ElMessage.error('删除失败: ' + error.message)
-    }
-  }).catch(() => {})
+  window.open(`/api/manual/${record.id}/download-excel`, '_blank')
 }
 
 // 处理用户命令

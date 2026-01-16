@@ -12,7 +12,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
     
     # 关联关系
     files = db.relationship('FileRecord', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -82,4 +82,34 @@ class FileRecord(db.Model):
         """设置Excel文件路径"""
         self.excel_path = path
         self.completed_at = datetime.utcnow()
+
+
+class TextRecord(db.Model):
+    """手动文本记录模型（不依赖大模型，用户自己粘贴文本）"""
+    __tablename__ = 'text_records'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    title = db.Column(db.String(50), nullable=False)  # 例如：2026年1月12日13:34:45
+    raw_text = db.Column(db.Text, nullable=False)    # 用户粘贴的原始文本
+
+    # 解析后的表格数据（JSON）
+    table_json = db.Column(db.Text, nullable=False)
+
+    # 生成的 Excel 文件路径
+    excel_path = db.Column(db.String(500), nullable=False)
+
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'title': self.title,
+            'raw_text': self.raw_text,
+            'table': json.loads(self.table_json) if self.table_json else None,
+            'excel_path': self.excel_path,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
 

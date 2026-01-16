@@ -58,12 +58,25 @@ def register_user(username, password):
 
 def authenticate_user(username, password):
     """验证用户登录"""
-    user = User.query.filter_by(username=username).first()
-    if not user:
-        return None, "用户名或密码错误"
-    
-    if not check_password_hash(user.password_hash, password):
-        return None, "用户名或密码错误"
-    
-    return user, None
+    try:
+        # 确保用户名和密码不为空
+        if not username or not password:
+            return None, "用户名或密码错误"
+        
+        # 查找用户（使用精确匹配，不区分大小写可能会有问题，所以保持区分大小写）
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return None, "用户名或密码错误"
+        
+        # 验证密码哈希
+        if not check_password_hash(user.password_hash, password):
+            return None, "用户名或密码错误"
+        
+        return user, None
+    except Exception as e:
+        # 捕获数据库查询等异常
+        return None, f"登录验证失败: {str(e)}"
+
+
+
 

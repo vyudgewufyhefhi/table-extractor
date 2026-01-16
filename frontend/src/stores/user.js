@@ -45,8 +45,28 @@ export const useUserStore = defineStore('user', () => {
   
   function loadUserFromStorage() {
     const storedUser = localStorage.getItem('user')
-    if (storedUser) {
-      user.value = JSON.parse(storedUser)
+    const storedToken = localStorage.getItem('token')
+    if (storedUser && storedToken) {
+      try {
+        user.value = JSON.parse(storedUser)
+        token.value = storedToken
+      } catch (e) {
+        // 如果解析失败，清除无效数据
+        localStorage.removeItem('user')
+        localStorage.removeItem('token')
+        user.value = null
+        token.value = null
+      }
+    } else {
+      // 如果token或user缺失，清除所有
+      if (!storedToken && storedUser) {
+        localStorage.removeItem('user')
+        user.value = null
+      }
+      if (!storedUser && storedToken) {
+        localStorage.removeItem('token')
+        token.value = null
+      }
     }
   }
   
@@ -63,4 +83,7 @@ export const useUserStore = defineStore('user', () => {
     loadUserFromStorage
   }
 })
+
+
+
 
