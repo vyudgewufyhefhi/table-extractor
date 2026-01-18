@@ -12,6 +12,14 @@ export const useUserStore = defineStore('user', () => {
     try {
       const response = await api.post('/login', { username, password })
       if (response.data.success) {
+        // 清除之前用户的数据（如果有）
+        const oldUserId = user.value?.id
+        if (oldUserId && oldUserId !== response.data.user.id) {
+          localStorage.removeItem(`manual_text_input_${oldUserId}`)
+          localStorage.removeItem(`table_preview_${oldUserId}`)
+          localStorage.removeItem(`last_record_${oldUserId}`)
+        }
+        
         user.value = response.data.user
         token.value = response.data.token || 'authenticated'
         localStorage.setItem('token', token.value)
@@ -37,6 +45,18 @@ export const useUserStore = defineStore('user', () => {
   }
   
   function logout() {
+    // 清除当前用户的所有数据
+    const currentUserId = user.value?.id
+    if (currentUserId) {
+      // 清除该用户的文本输入数据
+      localStorage.removeItem(`manual_text_input_${currentUserId}`)
+      // 清除该用户的预览数据
+      localStorage.removeItem(`table_preview_${currentUserId}`)
+      localStorage.removeItem(`last_record_${currentUserId}`)
+    }
+    // 清除通用数据（兼容旧版本）
+    localStorage.removeItem('manual_text_input')
+    
     user.value = null
     token.value = null
     localStorage.removeItem('token')

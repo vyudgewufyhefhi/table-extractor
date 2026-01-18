@@ -20,7 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # 创建必要的目录
-RUN mkdir -p uploads/excel instance
+# instance 目录用于数据库存储（根目录的 instance）
+# uploads 目录用于文件存储（根目录的 uploads）
+RUN mkdir -p instance uploads/excel
 
 # 暴露端口
 EXPOSE 5000

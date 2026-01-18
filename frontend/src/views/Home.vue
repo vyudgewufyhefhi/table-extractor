@@ -144,8 +144,53 @@ const promptText = ref(`提取出我上传的文件中的表格，如果每页�
 同一行中的不同单元格之间使用一个或多个空格分隔，不要使用制表符或逗号。
 不要输出额外说明、标题或注释，只输出纯文本内容。`)
 
-// 从localStorage恢复文本
-const manualText = ref(localStorage.getItem('manual_text_input') || '')
+// 获取用户特定的localStorage key
+const getUserStorageKey = (key) => {
+  const userId = userStore.user?.id
+  return userId ? `${key}_${userId}` : key
+}
+
+// 从localStorage恢复文本（与用户ID关联）
+const loadUserData = () => {
+  if (!userStore.user) {
+    manualText.value = ''
+    tablePreview.headers = []
+    tablePreview.rows = []
+    lastRecord.value = null
+    return
+  }
+  
+  const textKey = getUserStorageKey('manual_text_input')
+  const previewKey = getUserStorageKey('table_preview')
+  const recordKey = getUserStorageKey('last_record')
+  
+  // 恢复文本
+  manualText.value = localStorage.getItem(textKey) || ''
+  
+  // 恢复预览数据
+  const savedPreview = localStorage.getItem(previewKey)
+  if (savedPreview) {
+    try {
+      const preview = JSON.parse(savedPreview)
+      tablePreview.headers = preview.headers || []
+      tablePreview.rows = preview.rows || []
+    } catch (e) {
+      console.error('恢复预览数据失败:', e)
+    }
+  }
+  
+  // 恢复最后一条记录
+  const savedRecord = localStorage.getItem(recordKey)
+  if (savedRecord) {
+    try {
+      lastRecord.value = JSON.parse(savedRecord)
+    } catch (e) {
+      console.error('恢复记录数据失败:', e)
+    }
+  }
+}
+
+const manualText = ref('')
 const generating = ref(false)
 const tablePreview = reactive({
   headers: [],
@@ -155,14 +200,30 @@ const lastRecord = ref(null)
 const previewAreaRef = ref(null)
 const saving = ref(false)
 
-// 监听文本变化，保存到localStorage
+// 监听文本变化，保存到localStorage（与用户ID关联）
 watch(manualText, (newVal) => {
+  if (!userStore.user) return
+  
+  const textKey = getUserStorageKey('manual_text_input')
   if (newVal) {
-    localStorage.setItem('manual_text_input', newVal)
+    localStorage.setItem(textKey, newVal)
   } else {
-    localStorage.removeItem('manual_text_input')
+    localStorage.removeItem(textKey)
   }
 })
+
+// 监听用户变化，切换用户时加载对应的数据
+watch(() => userStore.user?.id, (newUserId, oldUserId) => {
+  if (newUserId !== oldUserId) {
+    // 用户切换，清除旧数据并加载新数据
+    if (oldUserId) {
+      localStorage.removeItem(`manual_text_input_${oldUserId}`)
+      localStorage.removeItem(`table_preview_${oldUserId}`)
+      localStorage.removeItem(`last_record_${oldUserId}`)
+    }
+    loadUserData()
+  }
+}, { immediate: false })
 
 const copyPrompt = async () => {
   try {
@@ -175,9 +236,19 @@ const copyPrompt = async () => {
 
 const clearManualText = () => {
   manualText.value = ''
-  localStorage.removeItem('manual_text_input')
   tablePreview.headers = []
   tablePreview.rows = []
+  lastRecord.value = null
+  
+  // 清除当前用户的数据
+  if (userStore.user) {
+    const textKey = getUserStorageKey('manual_text_input')
+    const previewKey = getUserStorageKey('table_preview')
+    const recordKey = getUserStorageKey('last_record')
+    localStorage.removeItem(textKey)
+    localStorage.removeItem(previewKey)
+    localStorage.removeItem(recordKey)
+  }
 }
 
 const handleManualGenerate = async () => {
@@ -214,6 +285,17 @@ const handleManualGenerate = async () => {
       if (data.table_data) {
         tablePreview.headers = data.table_data.headers || []
         tablePreview.rows = data.table_data.rows || []
+      }
+      
+      // 保存预览数据和记录到localStorage（与用户ID关联）
+      if (userStore.user) {
+        const previewKey = getUserStorageKey('table_preview')
+        const recordKey = getUserStorageKey('last_record')
+        localStorage.setItem(previewKey, JSON.stringify({
+          headers: tablePreview.headers,
+          rows: tablePreview.rows
+        }))
+        localStorage.setItem(recordKey, JSON.stringify(lastRecord.value))
       }
       // 等待DOM更新后，自动滚动到预览区域
       await nextTick()
@@ -280,6 +362,12 @@ const saveToHistory = async () => {
       ElMessage.success('已保存到历史记录')
       // 更新lastRecord，使其包含record_id，这样下载可以直接使用历史记录的接口
       lastRecord.value.id = res.data.record.id
+      
+      // 更新localStorage中的记录数据
+      if (userStore.user) {
+        const recordKey = getUserStorageKey('last_record')
+        localStorage.setItem(recordKey, JSON.stringify(lastRecord.value))
+      }
     } else {
       ElMessage.error(res.data.error || '保存失败')
     }
@@ -298,6 +386,13 @@ const handleCommand = (command) => {
       cancelButtonText: '取消',
       type: 'warning'
     }).then(() => {
+      // 清除当前页面的数据
+      manualText.value = ''
+      tablePreview.headers = []
+      tablePreview.rows = []
+      lastRecord.value = null
+      
+      // 退出登录（会清除localStorage中的数据）
       userStore.logout()
       router.push('/login')
     }).catch(() => {})
@@ -307,6 +402,9 @@ const handleCommand = (command) => {
 onMounted(() => {
   if (!userStore.user) {
     router.push('/login')
+  } else {
+    // 加载当前用户的数据
+    loadUserData()
   }
 })
 

@@ -52,7 +52,7 @@ pip install -r requirements.txt
 
 #### 4. ÅäÖÃ»·¾³±äÁ¿
 
-ÔÚÏîÄ¿¸ùÄ¿Â¼´´½¨ `.env` ÎÄ¼ş£¨¿É¸´ÖÆ `env.example`£©£º
+ÔÚÏîÄ¿¸ùÄ¿Â¼´´½¨ `.env` ÎÄ¼ş£º
 
 ```env
 DEPLOY_MODE=local
@@ -175,9 +175,7 @@ docker-compose logs -f
 ©¦   ©À©¤©¤ excel_utils.py   # ExcelÉú³É¹¤¾ß
 ©¦   ©À©¤©¤ init_db.py       # Êı¾İ¿â³õÊ¼»¯
 ©¦   ©À©¤©¤ requirements.txt # PythonÒÀÀµ
-©¦   ©À©¤©¤ Dockerfile       # ºó¶ËDocker¾µÏñ
-©¦   ©¸©¤©¤ instance/        # Êı¾İ¿â´æ´¢Ä¿Â¼
-©¦       ©¸©¤©¤ table_extractor.db
+©¦   ©¸©¤©¤ Dockerfile       # ºó¶ËDocker¾µÏñ
 ©À©¤©¤ frontend/            # Ç°¶Ë´úÂë
 ©¦   ©À©¤©¤ src/
 ©¦   ©¦   ©À©¤©¤ views/       # Ò³Ãæ×é¼ş
@@ -191,9 +189,10 @@ docker-compose logs -f
 ©¦   ©À©¤©¤ Dockerfile       # Ç°¶ËDocker¾µÏñ
 ©¦   ©À©¤©¤ nginx.conf       # NginxÅäÖÃ
 ©¦   ©¸©¤©¤ vite.config.js   # ViteÅäÖÃ
-©À©¤©¤ uploads/             # ÎÄ¼ş´æ´¢
+©À©¤©¤ instance/            # Êı¾İ¿â´æ´¢Ä¿Â¼£¨¸ùÄ¿Â¼£©
+©¦   ©¸©¤©¤ table_extractor.db
+©À©¤©¤ uploads/             # ÎÄ¼ş´æ´¢Ä¿Â¼£¨¸ùÄ¿Â¼£©
 ©¦   ©¸©¤©¤ excel/           # ExcelÎÄ¼ş´æ´¢
-©À©¤©¤ instance/             # Êı¾İ¿â´æ´¢£¨Èç¹û´Ó¸ùÄ¿Â¼ÔËĞĞ£©
 ©À©¤©¤ docker-compose.yml   # Docker ComposeÅäÖÃ
 ©À©¤©¤ .env                 # »·¾³±äÁ¿ÅäÖÃ£¨ĞèÒª´´½¨£©
 ©À©¤©¤ env.example          # »·¾³±äÁ¿Ê¾Àı
@@ -215,20 +214,45 @@ docker-compose logs -f
 ### ±¾µØ¿ª·¢ÅäÖÃ
 
 ```env
+# ²¿ÊğÄ£Ê½
 DEPLOY_MODE=local
+
+# ºó¶ËÅäÖÃ
+SECRET_KEY=dev-secret-key-change-in-production
+DATABASE_URL=sqlite:///table_extractor.db  # Êı¾İ¿â»á×Ô¶¯´´½¨ÔÚ¸ùÄ¿Â¼µÄ instance/ Ä¿Â¼
+UPLOAD_FOLDER=uploads  # ÉÏ´«ÎÄ¼ş´æ´¢ÔÚ¸ùÄ¿Â¼µÄ uploads/
 PORT=5000
-FRONTEND_PORT=80
+
+# Ç°¶ËÅäÖÃ
+VITE_PORT=5173
 ```
 
 ### ÔÆ²¿ÊğÅäÖÃ
 
 ```env
+# ²¿ÊğÄ£Ê½
 DEPLOY_MODE=cloud
+
+# ¹«ÍøIP/ÓòÃûÅäÖÃ
 PUBLIC_IP=123.45.67.89  # »òÊ¹ÓÃÓòÃû
 PUBLIC_DOMAIN=your-domain.com
+
+# ºó¶ËÅäÖÃ
+SECRET_KEY=your-secret-key-change-in-production
+DATABASE_URL=sqlite:///table_extractor.db  # Êı¾İ¿â´æ´¢ÔÚ¸ùÄ¿Â¼µÄ instance/ Ä¿Â¼
+UPLOAD_FOLDER=uploads  # ÉÏ´«ÎÄ¼ş´æ´¢ÔÚ¸ùÄ¿Â¼µÄ uploads/
 PORT=5000
+
+# Ç°¶ËÅäÖÃ
 FRONTEND_PORT=80
+VITE_API_URL=http://123.45.67.89/api  # »òÊ¹ÓÃÓòÃû
 ```
+
+### Â·¾¶ËµÃ÷
+
+- **Êı¾İ¿âÂ·¾¶**£ºÍ³Ò»´æ´¢ÔÚ¸ùÄ¿Â¼µÄ `instance/table_extractor.db`
+- **ÉÏ´«ÎÄ¼şÂ·¾¶**£ºÍ³Ò»´æ´¢ÔÚ¸ùÄ¿Â¼µÄ `uploads/` Ä¿Â¼
+- **ExcelÎÄ¼şÂ·¾¶**£º´æ´¢ÔÚ `uploads/excel/` Ä¿Â¼
 
 ÏêÏ¸ÅäÖÃËµÃ÷Çë²Î¿¼ `env.example` ÎÄ¼ş¡£
 
@@ -263,8 +287,8 @@ docker-compose build --no-cache
 
 ÒÔÏÂÊı¾İ»á×Ô¶¯³Ö¾Ã»¯µ½ËŞÖ÷»ú£º
 
-- **Êı¾İ¿â**: `./backend/instance/table_extractor.db`
-- **ÉÏ´«ÎÄ¼ş**: `./backend/uploads/`
+- **Êı¾İ¿â**: `./instance/table_extractor.db`£¨¸ùÄ¿Â¼£©
+- **ÉÏ´«ÎÄ¼ş**: `./uploads/`£¨¸ùÄ¿Â¼£©
 - **»·¾³±äÁ¿**: `./.env`
 
 ## ×¢ÒâÊÂÏî
@@ -290,10 +314,10 @@ A: ¼ì²éÎÄ±¾¸ñÊ½ÊÇ·ñÕıÈ·£¬²é¿´ºó¶ËÈÕÖ¾
 A: ¼ì²é¶Ë¿ÚÓ³Éä¡¢·À»ğÇ½ÉèÖÃ¡¢»·¾³±äÁ¿ÅäÖÃ
 
 **Q: Êı¾İ¿âÎÄ¼şÔÚÄÄÀï£¿**  
-A: Ä¬ÈÏÔÚ `backend/instance/table_extractor.db`£¬Èç¹û´Ó¸ùÄ¿Â¼ÔËĞĞ¿ÉÄÜÔÚ `instance/table_extractor.db`
+A: Í³Ò»´æ´¢ÔÚ¸ùÄ¿Â¼µÄ `instance/table_extractor.db`
 
 **Q: ÈçºÎ±¸·İÊı¾İ£¿**  
-A: ±¸·İ `backend/instance/` Ä¿Â¼£¨Êı¾İ¿â£©ºÍ `backend/uploads/` Ä¿Â¼£¨ExcelÎÄ¼ş£©
+A: ±¸·İ¸ùÄ¿Â¼µÄ `instance/` Ä¿Â¼£¨Êı¾İ¿â£©ºÍ `uploads/` Ä¿Â¼£¨ExcelÎÄ¼ş£©
 
 ## °²È«½¨Òé
 
@@ -306,6 +330,10 @@ A: ±¸·İ `backend/instance/` Ä¿Â¼£¨Êı¾İ¿â£©ºÍ `backend/uploads/` Ä¿Â¼£¨ExcelÎÄ¼ş£
 
 ### ×îĞÂ°æ±¾
 
+- [¡Ì] **Í³Ò»Â·¾¶ÅäÖÃ**£ºÊı¾İ¿âºÍÉÏ´«ÎÄ¼şÍ³Ò»´æ´¢ÔÚ¸ùÄ¿Â¼
+  - Êı¾İ¿â£º`instance/table_extractor.db`£¨¸ùÄ¿Â¼£¬²»ÔÙÊ¹ÓÃ `backend/instance/`£©
+  - ÉÏ´«ÎÄ¼ş£º`uploads/`£¨¸ùÄ¿Â¼£¬²»ÔÙÊ¹ÓÃ `backend/uploads/`£©
+  - É¾³ıÎŞÓÃµÄ `temp_images` Ä¿Â¼
 - [¡Ì] Ìí¼ÓÈ«Ñ¡/È¡ÏûÈ«Ñ¡¹¦ÄÜ
 - [¡Ì] ÊµÏÖ×Ô¶¯ÇåÀí¹ÂÁ¢ÎÄ¼ş»úÖÆ
 - [¡Ì] ÓÅ»¯UI£ºÍ³Ò»ÌáĞÑÑÕÉ«¡¢ÒÆ³ıĞÂ½¨ÈÎÎñ°´Å¥

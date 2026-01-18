@@ -22,14 +22,12 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-}
       - VITE_PORT=${VITE_PORT:-5173}
     volumes:
-      # ¹ÒÔØ .env ÎÄ¼ş£¨Èç¹û´æÔÚ£©
+      # æŒ‚è½½ .env æ–‡ä»¶ï¼ˆå¦‚æœå­˜åœ¨ï¼‰
       - ./.env:/app/.env:ro
-      # ¹ÒÔØÊı¾İ¿âÄ¿Â¼£¨³Ö¾Ã»¯£©
-      - ./backend/instance:/app/instance
-      # ¹ÒÔØÉÏ´«ÎÄ¼şÄ¿Â¼£¨³Ö¾Ã»¯£©
-      - ./backend/uploads:/app/uploads
-      # Èç¹û¸ùÄ¿Â¼Ò²ÓĞ instance ºÍ uploads£¬Ò²¹ÒÔØ
-      - ./instance:/app/instance_root:rw
+      # æŒ‚è½½æ•°æ®åº“ç›®å½•ï¼ˆæŒä¹…åŒ–ï¼‰- ç»Ÿä¸€ä½¿ç”¨æ ¹ç›®å½•çš„ instance
+      - ./instance:/app/instance
+      # æŒ‚è½½ä¸Šä¼ æ–‡ä»¶ç›®å½•ï¼ˆæŒä¹…åŒ–ï¼‰- ç»Ÿä¸€ä½¿ç”¨æ ¹ç›®å½•çš„ uploads
+      - ./uploads:/app/uploads
     networks:
       - table-extractor-network
     healthcheck:
@@ -44,7 +42,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # ¹¹½¨Ê±´«µİ»·¾³±äÁ¿£¨Èç¹ûÉèÖÃÁË VITE_API_URL£©
+        # æ„å»ºæ—¶ä¼ é€’ç¯å¢ƒå˜é‡ï¼ˆå¦‚æœè®¾ç½®äº† VITE_API_URLï¼‰
         - VITE_API_URL=${VITE_API_URL:-}
     container_name: table-extractor-frontend
     restart: unless-stopped
@@ -65,8 +63,8 @@ networks:
     driver: bridge
 
 volumes:
-  # Êı¾İ¿âÊı¾İ¾í£¨¿ÉÑ¡£¬Èç¹ûÊ¹ÓÃÃüÃû¾í£©
+  # æ•°æ®åº“æ•°æ®å·ï¼ˆå¯é€‰ï¼Œå¦‚æœä½¿ç”¨å‘½åå·ï¼‰
   database-data:
-  # ÉÏ´«ÎÄ¼şÊı¾İ¾í£¨¿ÉÑ¡£¬Èç¹ûÊ¹ÓÃÃüÃû¾í£©
+  # ä¸Šä¼ æ–‡ä»¶æ•°æ®å·ï¼ˆå¯é€‰ï¼Œå¦‚æœä½¿ç”¨å‘½åå·ï¼‰
   uploads-data:
 

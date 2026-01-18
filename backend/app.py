@@ -10,9 +10,31 @@ from dotenv import load_dotenv
 import uuid
 import json
 
+# ===== 统一路径配置 =====
+# 获取项目根目录（backend 的父目录）
+_backend_dir = os.path.dirname(os.path.abspath(__file__))
+_backend_dir_name = os.path.basename(_backend_dir)
+
+# 判断是否在 Docker 容器中（工作目录通常是 /app）
+IS_DOCKER = os.path.exists('/app') and os.getcwd() == '/app'
+
+if IS_DOCKER:
+    # Docker 环境：工作目录是 /app，代码从 backend/ 复制到 /app/
+    # 数据库目录：/app/instance（根目录，通过挂载）
+    # 上传文件目录：/app/uploads（根目录，通过挂载）
+    PROJECT_ROOT = '/app'
+    INSTANCE_DIR = '/app/instance'  # Docker 挂载路径（根目录的 instance）
+    UPLOADS_DIR = '/app/uploads'  # Docker 挂载路径
+else:
+    # 本地开发：backend 的父目录是项目根目录
+    # 数据库目录：根目录的 instance（统一位置）
+    # 上传文件目录：根目录的 uploads
+    PROJECT_ROOT = os.path.dirname(_backend_dir)
+    INSTANCE_DIR = os.path.join(PROJECT_ROOT, 'instance')  # 根目录的 instance
+    UPLOADS_DIR = os.path.join(PROJECT_ROOT, 'uploads')
+
 # 加载环境变量（优先从根目录加载）
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-root_env_path = os.path.join(root_dir, '.env')
+root_env_path = os.path.join(PROJECT_ROOT, '.env')
 backend_env_path = os.path.join(os.path.dirname(__file__), '.env')
 
 # 先加载根目录的.env，再加载backend目录的.env（如果存在）
@@ -23,9 +45,27 @@ if os.path.exists(backend_env_path):
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///table_extractor.db')
+
+# 统一数据库路径：使用根目录的 instance/table_extractor.db
+# 确保 instance 目录存在
+os.makedirs(INSTANCE_DIR, exist_ok=True)
+# 数据库文件路径（绝对路径）
+default_db_path = os.path.join(INSTANCE_DIR, 'table_extractor.db')
+# 将绝对路径转换为 SQLite URI 格式（使用 3 个斜杠表示绝对路径）
+# 注意：SQLite URI 使用 / 作为路径分隔符，需要转换 Windows 路径
+if os.name == 'nt':  # Windows
+    db_uri = 'sqlite:///' + default_db_path.replace('\\', '/')
+else:  # Unix/Linux
+    db_uri = 'sqlite:///' + default_db_path
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', db_uri)
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# 统一 uploads 路径：使用根目录的 uploads
 app.config['UPLOAD_FOLDER'] = os.getenv('UPLOAD_FOLDER', 'uploads')
+# 确保 uploads 目录在项目根目录
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+os.makedirs(os.path.join(UPLOADS_DIR, 'excel'), exist_ok=True)
 app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_FILE_SIZE', 10485760))  # 10MB
 
 # 初始化扩展
@@ -66,9 +106,7 @@ def get_cors_origins():
 allowed_origins = get_cors_origins()
 CORS(app, supports_credentials=True, origins=allowed_origins)
 
-# 确保上传目录存在
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'excel'), exist_ok=True)
+# 确保上传目录存在（已在上面初始化，这里不需要重复创建）
 
 
 @app.route('/api/health', methods=['GET'])
@@ -140,15 +178,14 @@ def cleanup_orphaned_excel_files_for_user(user_id=None, exclude_path=None):
                 excel_path = record.excel_path
                 if not os.path.isabs(excel_path):
                     excel_path = os.path.abspath(os.path.join(
-                        os.path.dirname(os.path.dirname(__file__)), 
+                        PROJECT_ROOT, 
                         excel_path
                     ))
                 db_excel_files.add(excel_path)
                 db_excel_files.add(os.path.basename(excel_path))
         
-        # 扫描 uploads/excel 目录
-        base_dir = os.path.dirname(os.path.dirname(__file__))
-        excel_dir = os.path.join(base_dir, app.config['UPLOAD_FOLDER'], 'excel')
+        # 扫描 uploads/excel 目录（基于项目根目录）
+        excel_dir = os.path.join(PROJECT_ROOT, app.config['UPLOAD_FOLDER'], 'excel')
         
         if not os.path.exists(excel_dir):
             return 0
@@ -177,7 +214,7 @@ def cleanup_orphaned_excel_files_for_user(user_id=None, exclude_path=None):
                     record_path = record.excel_path
                     if not os.path.isabs(record_path):
                         record_path = os.path.abspath(os.path.join(
-                            os.path.dirname(os.path.dirname(__file__)), 
+                            PROJECT_ROOT, 
                             record_path
                         ))
                     if record_path == file_path_abs or os.path.basename(record_path) == filename:
@@ -331,8 +368,7 @@ def manual_parse():
         # 生成 Excel
         excel_filename = f"{uuid.uuid4().hex}.xlsx"
         # 确保路径是绝对路径，基于项目根目录
-        base_dir = os.path.dirname(os.path.dirname(__file__))  # 项目根目录
-        excel_dir = os.path.join(base_dir, app.config['UPLOAD_FOLDER'], 'excel')
+        excel_dir = os.path.join(PROJECT_ROOT, app.config['UPLOAD_FOLDER'], 'excel')
         os.makedirs(excel_dir, exist_ok=True)
         excel_path = os.path.join(excel_dir, excel_filename)
         # 转换为绝对路径
@@ -498,9 +534,9 @@ def download_temp_excel():
     if not excel_path:
         return jsonify({'success': False, 'error': '需要文件路径'}), 400
     
-    # 处理路径
+    # 处理路径（基于项目根目录）
     if not os.path.isabs(excel_path):
-        excel_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), excel_path)
+        excel_path = os.path.join(PROJECT_ROOT, excel_path)
     
     if not os.path.exists(excel_path):
         return jsonify({'success': False, 'error': 'Excel文件不存在'}), 404
@@ -521,15 +557,15 @@ def download_manual_excel(record_id):
     if not record.excel_path:
         return jsonify({'success': False, 'error': 'Excel文件路径不存在'}), 404
     
-    # 处理路径：如果是相对路径，转换为绝对路径
+    # 处理路径：如果是相对路径，转换为绝对路径（基于项目根目录）
     excel_path = record.excel_path
     if not os.path.isabs(excel_path):
-        # 相对路径，需要基于项目根目录或配置的UPLOAD_FOLDER
-        excel_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), excel_path)
+        # 相对路径，需要基于项目根目录
+        excel_path = os.path.join(PROJECT_ROOT, excel_path)
     
     # 如果还是找不到，尝试基于UPLOAD_FOLDER的绝对路径
     if not os.path.exists(excel_path):
-        excel_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), app.config['UPLOAD_FOLDER'], 'excel', os.path.basename(record.excel_path))
+        excel_path = os.path.join(PROJECT_ROOT, app.config['UPLOAD_FOLDER'], 'excel', os.path.basename(record.excel_path))
     
     if not os.path.exists(excel_path):
         return jsonify({'success': False, 'error': f'Excel文件不存在: {excel_path}'}), 404
@@ -579,16 +615,15 @@ def cleanup_orphaned_excel_files():
                 excel_path = record.excel_path
                 if not os.path.isabs(excel_path):
                     excel_path = os.path.abspath(os.path.join(
-                        os.path.dirname(os.path.dirname(__file__)), 
+                        PROJECT_ROOT, 
                         excel_path
                     ))
                 db_excel_files.add(excel_path)
                 # 也添加文件名（用于匹配）
                 db_excel_files.add(os.path.basename(excel_path))
         
-        # 扫描 uploads/excel 目录
-        base_dir = os.path.dirname(os.path.dirname(__file__))
-        excel_dir = os.path.join(base_dir, app.config['UPLOAD_FOLDER'], 'excel')
+        # 扫描 uploads/excel 目录（基于项目根目录）
+        excel_dir = os.path.join(PROJECT_ROOT, app.config['UPLOAD_FOLDER'], 'excel')
         
         if not os.path.exists(excel_dir):
             return jsonify({
@@ -615,7 +650,7 @@ def cleanup_orphaned_excel_files():
                     record_path = record.excel_path
                     if not os.path.isabs(record_path):
                         record_path = os.path.abspath(os.path.join(
-                            os.path.dirname(os.path.dirname(__file__)), 
+                            PROJECT_ROOT, 
                             record_path
                         ))
                     # 比较绝对路径或文件名
