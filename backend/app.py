@@ -450,6 +450,35 @@ def save_to_history():
         # 在保存到历史记录之前，自动清理该用户之前生成的未保存临时文件（排除当前要保存的文件）
         cleanup_orphaned_excel_files_for_user(user_id=user_id, exclude_path=excel_path)
         
+        # 检查是否已存在相同的记录（根据 excel_path 判断，防止重复保存）
+        existing_record = TextRecord.query.filter_by(
+            user_id=user_id,
+            excel_path=excel_path
+        ).first()
+        
+        if existing_record:
+            # 如果记录已存在，返回已存在的记录（不重复保存）
+            return jsonify({
+                'success': True,
+                'record': existing_record.to_dict(),
+                'message': '该记录已存在于历史记录中'
+            }), 200
+        
+        # 从 title 解析时间，用于设置 created_at（保持与生成时间一致）
+        import re
+        created_at_time = None
+        if title:
+            # 尝试从 title 解析时间（格式：2026年01月18日18:39:56）
+            match = re.match(r'(\d{4})年(\d{2})月(\d{2})日(\d{2}):(\d{2}):(\d{2})', title)
+            if match:
+                year, month, day, hour, minute, second = map(int, match.groups())
+                created_at_time = datetime(year, month, day, hour, minute, second)
+            else:
+                # 如果无法解析，使用当前时间
+                created_at_time = get_china_time()
+        else:
+            created_at_time = get_china_time()
+        
         # 保存到历史记录
         record = TextRecord(
             user_id=user_id,
@@ -457,7 +486,7 @@ def save_to_history():
             raw_text=raw_text,
             table_json=json.dumps(table_data, ensure_ascii=False),
             excel_path=excel_path,
-            created_at=get_china_time(),  # 使用中国时区时间
+            created_at=created_at_time,  # 使用从 title 解析的时间（真正的生成时间）
         )
         db.session.add(record)
         db.session.commit()

@@ -397,9 +397,16 @@ const saveToHistory = async () => {
     })
 
     if (res.data.success) {
-      ElMessage.success('已保存到历史记录')
-      // 更新lastRecord，使其包含record_id，这样下载可以直接使用历史记录的接口
-      lastRecord.value.id = res.data.record.id
+      // 检查是否是重复保存
+      if (res.data.message === '该记录已存在于历史记录中') {
+        ElMessage.warning('该记录已存在于历史记录中，无需重复保存')
+        // 更新lastRecord，使其包含record_id
+        lastRecord.value.id = res.data.record.id
+      } else {
+        ElMessage.success('已保存到历史记录')
+        // 更新lastRecord，使其包含record_id，这样下载可以直接使用历史记录的接口
+        lastRecord.value.id = res.data.record.id
+      }
       
       // 更新localStorage中的记录数据
       if (userStore.user) {
