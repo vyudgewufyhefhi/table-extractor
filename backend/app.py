@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from models import db, User, FileRecord, TextRecord
 from auth import register_user, authenticate_user
 from excel_utils import create_excel_from_table
-from datetime import datetime, timedelta, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 from dotenv import load_dotenv
 import uuid
@@ -107,6 +107,14 @@ allowed_origins = get_cors_origins()
 CORS(app, supports_credentials=True, origins=allowed_origins)
 
 # 确保上传目录存在（已在上面初始化，这里不需要重复创建）
+
+
+def get_china_time():
+    """获取中国时区时间（UTC+8）"""
+    utc_now = datetime.now(timezone.utc)
+    china_tz = timezone(timedelta(hours=8))
+    china_time = utc_now.astimezone(china_tz)
+    return china_time.replace(tzinfo=None)
 
 
 @app.route('/api/health', methods=['GET'])
@@ -331,7 +339,7 @@ def manual_parse():
 
         # 生成标题：2026年01月16日13:45:30（时分秒用冒号）
         # 先检查同一秒是否已有生成记录，防止频繁生成（在生成Excel之前检查）
-        now = datetime.now()
+        now = get_china_time()  # 使用中国时区时间
         title_format = now.strftime("%Y年%m月%d日%H:%M:%S")
         
         if custom_title and str(custom_title).strip():
@@ -449,6 +457,7 @@ def save_to_history():
             raw_text=raw_text,
             table_json=json.dumps(table_data, ensure_ascii=False),
             excel_path=excel_path,
+            created_at=get_china_time(),  # 使用中国时区时间
         )
         db.session.add(record)
         db.session.commit()

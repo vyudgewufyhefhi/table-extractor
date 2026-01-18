@@ -226,11 +226,49 @@ watch(() => userStore.user?.id, (newUserId, oldUserId) => {
 }, { immediate: false })
 
 const copyPrompt = async () => {
+  const text = promptText.value
+  
+  // 方法1: 优先使用现代 Clipboard API（需要 HTTPS 或 localhost）
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      ElMessage.success('提示词已复制到剪贴板')
+      return
+    } catch (e) {
+      console.warn('Clipboard API 失败，尝试降级方案:', e)
+    }
+  }
+  
+  // 方法2: 降级方案 - 使用传统方法（兼容 HTTP）
   try {
-    await navigator.clipboard.writeText(promptText.value)
-    ElMessage.success('提示词已复制到剪贴板')
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-999999px'
+    textarea.style.top = '-999999px'
+    document.body.appendChild(textarea)
+    
+    textarea.select()
+    textarea.setSelectionRange(0, text.length)
+    
+    const successful = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    
+    if (successful) {
+      ElMessage.success('提示词已复制到剪贴板')
+    } else {
+      throw new Error('execCommand 复制失败')
+    }
   } catch (e) {
-    ElMessage.error('复制失败，请手动选择文本复制')
+    // 方法3: 最后的降级方案 - 选中文本让用户手动复制
+    const promptInput = document.querySelector('.prompt-area textarea')
+    if (promptInput) {
+      promptInput.select()
+      promptInput.setSelectionRange(0, text.length)
+      ElMessage.warning('请按 Ctrl+C（Mac: Cmd+C）手动复制文本')
+    } else {
+      ElMessage.error('复制失败，请手动选择文本复制')
+    }
   }
 }
 
